@@ -548,7 +548,7 @@ function output_result() {
     --arg aksVersion "$outputAksVersion" \
     '{aksVersion: $aksVersion}')
   echo "result is: $result"
-  echo $result >$AZ_SCRIPTS_PATH_OUTPUT_DIRECTORY
+  echo $result >$AZ_SCRIPTS_PATH_OUTPUT_DIRECTORY/result.txt
 }
 
 # main
