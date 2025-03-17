@@ -15,6 +15,12 @@
                 "description": "If we are deploying from the command line, use the passed in _artifactsLocation, otherwise use the default."
             }
         },
+        "_globalResourceNameSuffix": {
+            "type": "string",
+            "metadata": {
+                "description": "A unique suffix that was specified during the deployment of the solution template."
+            }
+        },
         "_artifactsLocationSasToken": {
             "defaultValue": "",
             "type": "securestring",
@@ -64,6 +70,13 @@
                 "description": "References to Azure resources from where the DNS resource value is taken. Each item is corresponding to values of dnszonesARecordSetNames."
             }
         },
+        "tagsByResource": {
+            "type": "object",
+            "defaultValue": {},
+            "metadata": {
+                "description": "${label.tagsLabel}"
+            }
+        },
         "ttl": {
             "type": "int",
             "defaultValue": 3600,
@@ -107,7 +120,8 @@
         {
             "type": "Microsoft.Resources/deployments",
             "name": "uamiDeployment",
-            "apiVersion": "${azure.apiVersion}",
+            "tags": "[parameters('tagsByResource')['${identifier.resourcesDeployment}']]",
+            "apiVersion": "${azure.apiVersionForDeployment}",
             "properties": {
                 "mode": "Incremental",
                 "templateLink": {
@@ -120,6 +134,9 @@
                     },
                     "uamiName": {
                         "value": "[variables('name_deploymentScriptUserDefinedManagedIdentity')]"
+                    },
+                    "tagsByResource": {
+                        "value": "[parameters('tagsByResource')]"
                     }
                 }
             }
@@ -127,10 +144,11 @@
         {
             "type": "Microsoft.Resources/deploymentScripts",
             "apiVersion": "${azure.apiVersionForDeploymentScript}",
+            "tags": "[parameters('tagsByResource')['${identifier.deploymentScripts}']]",
             "dependsOn": [
                 "[resourceId('Microsoft.Resources/deployments', 'uamiDeployment')]"
             ],
-            "name": "script-createDNSRecords",
+            "name": "[concat('script-createDNSRecords-', parameters('_globalResourceNameSuffix'))]",
             "location": "[parameters('location')]",
             "identity": {
                 "type": "UserAssigned",

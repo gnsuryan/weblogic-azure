@@ -4,6 +4,7 @@
 param _artifactsLocation string = deployment().properties.templateLink.uri
 @secure()
 param _artifactsLocationSasToken string = ''
+param _globalResourceNameSuffix string
 
 param appgwAlias string = 'appgw-contoso-alias'
 param appgwName string = 'appgw-contoso'
@@ -34,6 +35,8 @@ param useInternalLB bool = false
 param utcValue string = utcNow()
 param wlsDomainName string = 'domain1'
 param wlsDomainUID string = 'sample-domain1'
+@description('${label.tagsLabel}')
+param tagsByResource object
 
 var const_commonScript = 'common.sh'
 var const_createDnsRecordScript = 'createDnsRecord.sh'
@@ -43,11 +46,12 @@ var const_scriptLocation = uri(_artifactsLocation, 'scripts/')
 var const_primaryScript = 'setupNetworking.sh'
 var const_utilityScript = 'utility.sh'
 
-resource deploymentScript 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
-  name: 'ds-networking-deployment'
+resource deploymentScript 'Microsoft.Resources/deploymentScripts@${azure.apiVersionForDeploymentScript}' = {
+  name: 'ds-networking-deployment-${_globalResourceNameSuffix}'
   location: location
   kind: 'AzureCLI'
   identity: identity
+  tags: tagsByResource['${identifier.deploymentScripts}']
   properties: {
     azCliVersion: azCliVersion
     environmentVariables: [

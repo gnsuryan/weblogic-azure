@@ -91,6 +91,12 @@
                 "description": "Provide managed server prefix name"
             }
         },
+        "managedVMNamePrefix": {
+            "type": "string",
+            "metadata": {
+                "description": "Provide managed VM prefix name"
+            }
+        },
         "numberOfManagedApplicationInstances": {
             "type": "int",
             "defaultValue": 2,
@@ -98,6 +104,13 @@
             "maxValue": 20,
             "metadata": {
                 "description": "Number of VMs that have been deployed to host managed application server."
+            }
+        },
+        "tagsByResource": {
+            "type": "object",
+            "defaultValue": {},
+            "metadata": {
+                "description": "${label.tagsLabel}"
             }
         },
         "wlsDomainName": {
@@ -128,7 +141,8 @@
     "resources": [
         {
             "type": "Microsoft.Resources/deployments",
-            "apiVersion": "${azure.apiVersion}",
+            "apiVersion": "${azure.apiVersionForDeployment}",
+            "tags": "[parameters('tagsByResource')['${identifier.resourcesDeployment}']]",
             "name": "pswlessDbTemplate",
             "condition": "[parameters('enablePswlessConnection')]",
             "properties": {
@@ -171,8 +185,14 @@
                     "managedServerPrefix": {
                         "value": "[parameters('managedServerPrefix')]"
                     },
+                    "managedVMNamePrefix": {
+                        "value": "[parameters('managedVMNamePrefix')]"
+                    },
                     "numberOfManagedApplicationInstances": {
                         "value": "[parameters('numberOfManagedApplicationInstances')]"
+                    },
+                    "tagsByResource": {
+                        "value": "[parameters('tagsByResource')]"
                     },
                     "wlsDomainName": {
                         "value": "[parameters('wlsDomainName')]"
@@ -188,8 +208,9 @@
         },
         {
             "type": "Microsoft.Resources/deployments",
-            "apiVersion": "${azure.apiVersion}",
+            "apiVersion": "${azure.apiVersionForDeployment}",
             "name": "upgradeMySQLJdbcDriverTemplate",
+            "tags": "[parameters('tagsByResource')['${identifier.resourcesDeployment}']]",
             "condition": "[and(not(parameters('enablePswlessConnection')), equals(parameters('databaseType'),'mysql'))]",
             "properties": {
                 "mode": "Incremental",
@@ -219,8 +240,14 @@
                     "managedServerPrefix": {
                         "value": "[parameters('managedServerPrefix')]"
                     },
+                    "managedVMNamePrefix": {
+                        "value": "[parameters('managedVMNamePrefix')]"
+                    },
                     "numberOfManagedApplicationInstances": {
                         "value": "[parameters('numberOfManagedApplicationInstances')]"
+                    },
+                    "tagsByResource": {
+                        "value": "[parameters('tagsByResource')]"
                     },
                     "wlsDomainName": {
                         "value": "[parameters('wlsDomainName')]"
@@ -236,8 +263,9 @@
         },
         {
             "type": "Microsoft.Resources/deployments",
-            "apiVersion": "${azure.apiVersion}",
+            "apiVersion": "${azure.apiVersionForDeployment}",
             "name": "passwordDatasourceDeployment",
+            "tags": "[parameters('tagsByResource')['${identifier.resourcesDeployment}']]",
             "condition": "[not(parameters('enablePswlessConnection'))]",
             "dependsOn": [
                 "[resourceId('Microsoft.Resources/deployments', 'upgradeMySQLJdbcDriverTemplate')]"
@@ -281,6 +309,9 @@
                     },
                     "location": {
                         "value": "[parameters('location')]"
+                    },
+                    "tagsByResource": {
+                        "value": "[parameters('tagsByResource')]"
                     },
                     "wlsPassword": {
                         "value": "[parameters('wlsPassword')]"

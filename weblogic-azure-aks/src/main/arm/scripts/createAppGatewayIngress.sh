@@ -1,4 +1,4 @@
-# Copyright (c) 2021, Oracle Corporation and/or its affiliates.
+# Copyright (c) 2021, 2024, Oracle Corporation and/or its affiliates.
 # Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl.
 
 # Description: to create Azure Application Gateway ingress for the following targets.
@@ -22,12 +22,12 @@ metadata:
     azure.weblogic.target: "${constClusterName}"
     azure.weblogc.createdByWlsOffer: "true"
   annotations:
-    kubernetes.io/ingress.class: azure/application-gateway
     appgw.ingress.kubernetes.io/appgw-ssl-certificate: "${APPGW_SSL_CERT_NAME}"
     appgw.ingress.kubernetes.io/use-private-ip: "${APPGW_USE_PRIVATE_IP}"
     appgw.ingress.kubernetes.io/cookie-based-affinity: "${ENABLE_COOKIE_BASED_AFFINITY}"
     appgw.ingress.kubernetes.io/backend-path-prefix: "/"
 spec:
+  ingressClassName: azure-application-gateway
   rules:
     - http:
         paths:
@@ -55,11 +55,11 @@ metadata:
     azure.weblogic.target: "${constClusterName}"
     azure.weblogc.createdByWlsOffer: "true"
   annotations:
-    kubernetes.io/ingress.class: azure/application-gateway
     appgw.ingress.kubernetes.io/use-private-ip: "${APPGW_USE_PRIVATE_IP}"
     appgw.ingress.kubernetes.io/cookie-based-affinity: "${ENABLE_COOKIE_BASED_AFFINITY}"
     appgw.ingress.kubernetes.io/backend-path-prefix: "/"
 spec:
+  ingressClassName: azure-application-gateway
   rules:
     - http:
         paths:
@@ -87,7 +87,6 @@ metadata:
     azure.weblogic.target: "${constClusterName}"
     azure.weblogc.createdByWlsOffer: "true"
   annotations:
-    kubernetes.io/ingress.class: azure/application-gateway
     appgw.ingress.kubernetes.io/ssl-redirect: "true"
     appgw.ingress.kubernetes.io/backend-protocol: "https"
     appgw.ingress.kubernetes.io/appgw-ssl-certificate: "${APPGW_SSL_CERT_NAME}"
@@ -109,6 +108,7 @@ EOF
     appgw.ingress.kubernetes.io/appgw-trusted-root-certificate: "${APPGW_TRUSTED_ROOT_CERT_NAME}"
 
 spec:
+  ingressClassName: azure-application-gateway
   rules:
     - http:
         paths:
@@ -136,10 +136,10 @@ metadata:
     azure.weblogic.target: "${constAdminServerName}"
     azure.weblogc.createdByWlsOffer: "true"
   annotations:
-    kubernetes.io/ingress.class: azure/application-gateway
     appgw.ingress.kubernetes.io/use-private-ip: "${APPGW_USE_PRIVATE_IP}"
     appgw.ingress.kubernetes.io/cookie-based-affinity: "${ENABLE_COOKIE_BASED_AFFINITY}"
 spec:
+  ingressClassName: azure-application-gateway
   rules:
     - http:
         paths:
@@ -165,11 +165,11 @@ metadata:
     azure.weblogic.target: "${constAdminServerName}-remote-console"
     azure.weblogc.createdByWlsOffer: "true"
   annotations:
-    kubernetes.io/ingress.class: azure/application-gateway
     appgw.ingress.kubernetes.io/backend-path-prefix: "/"
     appgw.ingress.kubernetes.io/use-private-ip: "${APPGW_USE_PRIVATE_IP}"
     appgw.ingress.kubernetes.io/cookie-based-affinity: "${ENABLE_COOKIE_BASED_AFFINITY}"
 spec:
+  ingressClassName: azure-application-gateway
   rules:
     - http:
         paths:
@@ -197,7 +197,6 @@ metadata:
     azure.weblogic.target: "${constAdminServerName}"
     azure.weblogc.createdByWlsOffer: "true"
   annotations:
-    kubernetes.io/ingress.class: azure/application-gateway
     appgw.ingress.kubernetes.io/ssl-redirect: "true"
     appgw.ingress.kubernetes.io/backend-protocol: "https"
     appgw.ingress.kubernetes.io/appgw-ssl-certificate: "${APPGW_SSL_CERT_NAME}"
@@ -219,6 +218,7 @@ EOF
     appgw.ingress.kubernetes.io/appgw-trusted-root-certificate: "${APPGW_TRUSTED_ROOT_CERT_NAME}"
 
 spec:
+  ingressClassName: azure-application-gateway
   rules:
     - http:
         paths:
@@ -244,7 +244,6 @@ metadata:
     azure.weblogic.target: "${constAdminServerName}-remote-console"
     azure.weblogc.createdByWlsOffer: "true"
   annotations:
-    kubernetes.io/ingress.class: azure/application-gateway
     appgw.ingress.kubernetes.io/backend-path-prefix: "/"
     appgw.ingress.kubernetes.io/ssl-redirect: "true"
     appgw.ingress.kubernetes.io/backend-protocol: "https"
@@ -267,6 +266,7 @@ EOF
     appgw.ingress.kubernetes.io/appgw-trusted-root-certificate: "${APPGW_TRUSTED_ROOT_CERT_NAME}"
 
 spec:
+  ingressClassName: azure-application-gateway
   rules:
     - http:
         paths:
@@ -318,10 +318,9 @@ function network_peers_aks_appgw() {
   local aksNetworkRgName=${aksNetWorkId#*\/resourceGroups\/}
   local aksNetworkRgName=${aksNetworkRgName%\/providers\/*}
 
-  local appGatewaySubnetId=$(az network application-gateway show -g ${CURRENT_RG_NAME} --name ${APPGW_NAME} -o tsv --query "gatewayIpConfigurations[0].subnet.id")
-  local appGatewayVnetResourceGroup=$(az network application-gateway show -g ${CURRENT_RG_NAME} --name ${APPGW_NAME} -o tsv --query "gatewayIpConfigurations[0].subnet.resourceGroup")
-  local appGatewaySubnetName=$(az resource show --ids ${appGatewaySubnetId} --query "name" -o tsv)
-  local appgwNetworkId=$(echo $appGatewaySubnetId | sed s/"\/subnets\/${appGatewaySubnetName}"//)
+  local appGatewaySubnetId=$(az network application-gateway show -g ${CURRENT_RG_NAME} --name ${APPGW_NAME} -o tsv --query "gatewayIPConfigurations[0].subnet.id")
+  local appGatewayVnetResourceGroup=$(az network application-gateway show -g ${CURRENT_RG_NAME} --name ${APPGW_NAME} -o tsv --query "gatewayIPConfigurations[0].subnet.resourceGroup")
+  local appgwNetworkId=${appGatewaySubnetId%\/subnets\/*}
   local appgwVnetName=$(az resource show --ids ${appgwNetworkId} --query "name" -o tsv)
 
   local toPeer=true

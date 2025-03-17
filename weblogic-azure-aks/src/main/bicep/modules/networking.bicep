@@ -1,4 +1,4 @@
-// Copyright (c) 2021, Oracle Corporation and/or its affiliates.
+// Copyright (c) 2021, 2024, Oracle Corporation and/or its affiliates.
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl.
 
 param _artifactsLocation string = deployment().properties.templateLink.uri
@@ -10,6 +10,7 @@ param _pidLbEnd string = 'pid-networking-lb-end'
 param _pidLbStart string = 'pid-networking-lb-start'
 param _pidNetworkingEnd string = 'pid-networking-end'
 param _pidNetworkingStart string = 'pid-networking-start'
+param _globalResourceNameSuffix string
 @description('Resource group name of an existing AKS cluster.')
 param aksClusterRGName string = 'aks-contoso-rg'
 @description('Name of an existing AKS cluster.')
@@ -46,6 +47,8 @@ param identity object = {}
 param location string
 @description('Object array to define Load Balancer service, each object must include service name, service target[admin-server or cluster-1], port.')
 param lbSvcValues array = []
+@description('${label.tagsLabel}')
+param tagsByResource object
 @description('True to set up internal load balancer service.')
 param useInternalLB bool = false
 @description('Name of WebLogic domain to create.')
@@ -85,6 +88,7 @@ module dnsZoneDeployment '_azure-resoruces/_dnsZones.bicep' = if (enableDNSConfi
   name: 'dnszone-deployment'
   params: {
     dnszoneName: dnszoneName
+    tagsByResource: tagsByResource
   }
   dependsOn: [
     pidNetworkingStart
@@ -92,15 +96,17 @@ module dnsZoneDeployment '_azure-resoruces/_dnsZones.bicep' = if (enableDNSConfi
   ]
 }
 
-module validateAgic '_deployment-scripts/_ds_ensure_available_agic.bicep' = if (enableAppGWIngress) {
-  name: 'validate-agic'
+module installAgic '_deployment-scripts/_ds_install_agic.bicep' = if (enableAppGWIngress) {
+  name: 'install-agic'
   params: {
+    _globalResourceNameSuffix: _globalResourceNameSuffix
     location: location
     identity: identity
     aksClusterRGName: aksClusterRGName
     appgwName: appGatewayName
     aksClusterName: aksClusterName
     azCliVersion: azCliVersion
+    tagsByResource: tagsByResource
   }
   dependsOn: [
     pidNetworkingStart
@@ -114,7 +120,23 @@ module agicRoleAssignment '_rolesAssignment/_agicRoleAssignment.bicep' = if (ena
     aksClusterRGName: aksClusterRGName
   }
   dependsOn: [
-    validateAgic
+    installAgic
+  ]
+}
+
+module validateAgic '_deployment-scripts/_ds_validate_agic.bicep' = if (enableAppGWIngress) {
+  name: 'validate-agic'
+  params: {
+    _globalResourceNameSuffix: _globalResourceNameSuffix
+    location: location
+    identity: identity
+    aksClusterRGName: aksClusterRGName
+    aksClusterName: aksClusterName
+    azCliVersion: azCliVersion
+    tagsByResource: tagsByResource
+  }
+  dependsOn: [
+    agicRoleAssignment
   ]
 }
 
@@ -123,6 +145,7 @@ module networkingDeploymentYesAppGW '_deployment-scripts/_ds-create-networking.b
   params: {
     _artifactsLocation: _artifactsLocation
     _artifactsLocationSasToken: _artifactsLocationSasToken
+    _globalResourceNameSuffix: _globalResourceNameSuffix
     appgwName: appGatewayName
     appgwAlias: appGatewayAlias
     appgwForAdminServer: appgwForAdminServer
@@ -147,13 +170,14 @@ module networkingDeploymentYesAppGW '_deployment-scripts/_ds-create-networking.b
     identity: identity
     lbSvcValues: lbSvcValues
     location: location
+    tagsByResource: tagsByResource
     useInternalLB: useInternalLB
     wlsDomainName: wlsDomainName
-    wlsDomainUID: wlsDomainUID
+    wlsDomainUID: wlsDomainUID    
   }
   dependsOn: [
     dnsZoneDeployment
-    agicRoleAssignment
+    validateAgic
   ]
 }
 
@@ -162,6 +186,7 @@ module networkingDeploymentNoAppGW '_deployment-scripts/_ds-create-networking.bi
   params: {
     _artifactsLocation: _artifactsLocation
     _artifactsLocationSasToken: _artifactsLocationSasToken
+    _globalResourceNameSuffix: _globalResourceNameSuffix
     appgwName: 'null'
     appgwAlias: 'null'
     appgwForAdminServer: appgwForAdminServer
@@ -186,13 +211,14 @@ module networkingDeploymentNoAppGW '_deployment-scripts/_ds-create-networking.bi
     identity: identity
     lbSvcValues: lbSvcValues
     location: location
+    tagsByResource: tagsByResource
     useInternalLB: useInternalLB
     wlsDomainName: wlsDomainName
     wlsDomainUID: wlsDomainUID
   }
   dependsOn: [
     dnsZoneDeployment
-    agicRoleAssignment
+    validateAgic
   ]
 }
 

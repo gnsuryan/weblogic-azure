@@ -635,10 +635,10 @@ Wants=network-online.target
 Type=simple
 # Note that the following three parameters should be changed to the correct paths
 # on your own system
-WorkingDirectory=$DOMAIN_PATH/$wlsDomainName
+WorkingDirectory=/u01/domains
 Environment="JAVA_OPTIONS=${SERVER_STARTUP_ARGS}"
-ExecStart="$DOMAIN_PATH/$wlsDomainName/bin/startNodeManager.sh"
-ExecStop="$DOMAIN_PATH/$wlsDomainName/bin/stopNodeManager.sh"
+ExecStart=/bin/bash $DOMAIN_PATH/$wlsDomainName/bin/startNodeManager.sh
+ExecStop=/bin/bash $DOMAIN_PATH/$wlsDomainName/bin/stopNodeManager.sh
 User=oracle
 Group=oracle
 KillMode=process
@@ -664,10 +664,10 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory=$DOMAIN_PATH/$wlsDomainName
+WorkingDirectory=/u01/domains
 Environment="JAVA_OPTIONS=${SERVER_STARTUP_ARGS}"
-ExecStart="${startWebLogicScript}"
-ExecStop="${stopWebLogicScript}"
+ExecStart=/bin/bash ${startWebLogicScript}
+ExecStop=/bin/bash ${stopWebLogicScript}
 User=oracle
 Group=oracle
 KillMode=process
@@ -876,7 +876,7 @@ function storeCustomSSLCerts()
         serverPrivateKeyAlias=$(echo "$serverPrivateKeyAlias" | base64 --decode)
         serverPrivateKeyPassPhrase=$(echo "$serverPrivateKeyPassPhrase" | base64 --decode)
 
-        #decode cert data once again as it would got base64 encoded while  storing in azure keyvault
+        #decode cert data once again as it would got base64 encoded while uploading
         echo "$customIdentityKeyStoreData" | base64 --decode > $customIdentityKeyStoreFileName
         echo "$customTrustKeyStoreData" | base64 --decode > $customTrustKeyStoreFileName
 

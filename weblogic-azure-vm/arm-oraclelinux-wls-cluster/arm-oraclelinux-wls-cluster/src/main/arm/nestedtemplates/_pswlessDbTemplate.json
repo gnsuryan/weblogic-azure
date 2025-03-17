@@ -77,6 +77,12 @@
                 "description": "Provide managed server prefix name"
             }
         },
+        "managedVMNamePrefix": {
+            "type": "string",
+            "metadata": {
+                "description": "Provide managed VM name prefix"
+            }
+        },
         "numberOfManagedApplicationInstances": {
             "type": "int",
             "defaultValue": 2,
@@ -84,6 +90,13 @@
             "maxValue": 20,
             "metadata": {
                 "description": "Number of VMs that have been deployed to host managed application server."
+            }
+        },
+        "tagsByResource": {
+            "type": "object",
+            "defaultValue": {},
+            "metadata": {
+                "description": "${label.tagsLabel}"
             }
         },
         "wlsDomainName": {
@@ -108,8 +121,8 @@
     },
     "variables": {
         "const_connectionString": "[if(and(equals(parameters('databaseType'),'sqlserver'), equals(last(parameters('dsConnectionURL')),';')), take(parameters('dsConnectionURL'), add(length(parameters('dsConnectionURL')),-1)),parameters('dsConnectionURL'))]",
-        "const_identityAPIVersion": "${azure.apiVersionForIndentity}",
-        "const_managedVMPrefix": "[concat(parameters('managedServerPrefix'),'VM')]",
+        "const_identityAPIVersion": "${azure.apiVersionForIdentity}",
+        "const_managedVMPrefix": "[concat(parameters('managedVMNamePrefix'), 'VM')]",
         "const_msiDefaultUser": "msiUser",
         "name_appendIdentityTemplate": "_appendUserManagedIdentity.json",
         "name_installJdbcLibsTemplate": "_installJdbcLibsTemplate.json",
@@ -120,6 +133,11 @@
             "sqlserver": "authentication=ActiveDirectoryMSI"
         },
         "array_urlJoiner": {
+            "mysql": "[if(contains(variables('const_connectionString'), '?'), '&', '?')]",
+            "postgresql": "[if(contains(variables('const_connectionString'), '?'), '&', '?')]",
+            "sqlserver": ";"
+        },
+        "array_paramJoiner": {
             "mysql": "&",
             "postgresql": "&",
             "sqlserver": ";"
@@ -137,7 +155,8 @@
     "resources": [
         {
             "type": "Microsoft.Resources/deployments",
-            "apiVersion": "${azure.apiVersion}",
+            "apiVersion": "${azure.apiVersionForDeployment}",
+            "tags": "[parameters('tagsByResource')['${identifier.resourcesDeployment}']]",
             "name": "${cluster.pswless.database.start}",
             "properties": {
                 "mode": "Incremental",
@@ -150,7 +169,8 @@
         },
         {
             "type": "Microsoft.Resources/deployments",
-            "apiVersion": "${azure.apiVersion}",
+            "apiVersion": "${azure.apiVersionForDeployment}",
+            "tags": "[parameters('tagsByResource')['${identifier.resourcesDeployment}']]",
             "name": "[concat('assignDbIdentityTo',variables('const_managedVMPrefix'), copyIndex(1))]",
             "copy": {
                 "name": "virtualMachineIdentityLoop",
@@ -170,7 +190,7 @@
                         "value": "[variables('obj_dbIdentity')]"
                     },
                     "existingIdentities": {
-                        "value": "[if(equals(reference(resourceId('Microsoft.Compute/virtualMachines',concat(variables('const_managedVMPrefix'), copyIndex(1))), '${azure.apiVersion}', 'Full').identity.type,'UserAssigned'),reference(resourceId('Microsoft.Compute/virtualMachines',concat(variables('const_managedVMPrefix'), copyIndex(1))), '${azure.apiVersion}', 'Full').identity.userAssignedIdentities, variables('obj_empty'))]"
+                        "value": "[if(equals(reference(resourceId('Microsoft.Compute/virtualMachines',concat(variables('const_managedVMPrefix'), copyIndex(1))), '${azure.apiVersionForDeployment}', 'Full').identity.type,'UserAssigned'),reference(resourceId('Microsoft.Compute/virtualMachines',concat(variables('const_managedVMPrefix'), copyIndex(1))), '${azure.apiVersionForDeployment}', 'Full').identity.userAssignedIdentities, variables('obj_empty'))]"
                     },
                     "location": {
                         "value": "[parameters('location')]"
@@ -180,7 +200,8 @@
         },
         {
             "type": "Microsoft.Resources/deployments",
-            "apiVersion": "${azure.apiVersion}",
+            "apiVersion": "${azure.apiVersionForDeployment}",
+            "tags": "[parameters('tagsByResource')['${identifier.resourcesDeployment}']]",
             "name": "installJdbcLibsTemplate",
             "condition": "[or(equals(parameters('databaseType'),'mysql'), equals(parameters('databaseType'),'postgresql'))]",
             "dependsOn": [
@@ -214,8 +235,14 @@
                     "managedServerPrefix": {
                         "value": "[parameters('managedServerPrefix')]"
                     },
+                    "managedVMNamePrefix": {
+                        "value": "[parameters('managedVMNamePrefix')]"
+                    },
                     "numberOfManagedApplicationInstances": {
                         "value": "[parameters('numberOfManagedApplicationInstances')]"
+                    },
+                    "tagsByResource": {
+                        "value": "[parameters('tagsByResource')]"
                     },
                     "wlsDomainName": {
                         "value": "[parameters('wlsDomainName')]"
@@ -231,7 +258,8 @@
         },
         {
             "type": "Microsoft.Resources/deployments",
-            "apiVersion": "${azure.apiVersion}",
+            "apiVersion": "${azure.apiVersionForDeployment}",
+            "tags": "[parameters('tagsByResource')['${identifier.resourcesDeployment}']]",
             "name": "passwordlessDatasourceDeployment",
             "dependsOn": [
                 "[resourceId('Microsoft.Resources/deployments', 'installJdbcLibsTemplate')]"
@@ -259,7 +287,7 @@
                         "value": "[parameters('dbGlobalTranPro')]"
                     },
                     "dsConnectionURL": {
-                        "value": "[uri(format('{0}{4}{1}{4}{2}={3}', variables('const_connectionString'), variables('array_azureJdbcPlugins')[parameters('databaseType')], variables('array_msiClientId')[parameters('databaseType')], reference(items(parameters('dbIdentity').userAssignedIdentities)[0].key,variables('const_identityAPIVersion'), 'full').properties.clientId, variables('array_urlJoiner')[parameters('databaseType')]), '')]"
+                        "value": "[uri(format('{0}{4}{1}{5}{2}={3}', variables('const_connectionString'), variables('array_azureJdbcPlugins')[parameters('databaseType')], variables('array_msiClientId')[parameters('databaseType')], reference(items(parameters('dbIdentity').userAssignedIdentities)[0].key,variables('const_identityAPIVersion'), 'full').properties.clientId, variables('array_urlJoiner')[parameters('databaseType')], variables('array_paramJoiner')[parameters('databaseType')]), '')]"
                     },
                     "dbUser": {
                         "value": "[if(equals(parameters('databaseType'), 'sqlserver'), variables('const_msiDefaultUser'), parameters('dbUser'))]"
@@ -273,6 +301,9 @@
                     "location": {
                         "value": "[parameters('location')]"
                     },
+                    "tagsByResource": {
+                        "value": "[parameters('tagsByResource')]"
+                    },
                     "wlsPassword": {
                         "value": "[parameters('wlsPassword')]"
                     },
@@ -284,7 +315,8 @@
         },
         {
             "type": "Microsoft.Resources/deployments",
-            "apiVersion": "${azure.apiVersion}",
+            "apiVersion": "${azure.apiVersionForDeployment}",
+            "tags": "[parameters('tagsByResource')['${identifier.resourcesDeployment}']]",
             "name": "${cluster.pswless.database.end}",
             "dependsOn": [
                 "[resourceId('Microsoft.Resources/deployments', 'passwordlessDatasourceDeployment')]"

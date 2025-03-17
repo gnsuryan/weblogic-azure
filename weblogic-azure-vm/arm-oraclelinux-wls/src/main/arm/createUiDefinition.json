@@ -3,6 +3,13 @@
     "handler": "Microsoft.Azure.CreateUIDef",
     "version": "0.1.2-preview",
     "parameters": {
+        "config": {
+            "basics": {
+                "resourceGroup": {
+                    "allowExisting": true
+                }
+            }
+        },
         "basics": [
             {
                 "name": "skuUrnVersion",
@@ -49,16 +56,16 @@
                             "value": "owls-141100-jdk11-ol76;Oracle:weblogic-141100-jdk11-ol76:owls-141100-jdk11-ol7;latest"
                         },
                         {
-                            "label": "WebLogic Server 12.2.1.4.0 and JDK8 on Red Hat Enterprise Linux 7.6",
-                            "value": "owls-122140-jdk8-rhel76;Oracle:weblogic-122140-jdk8-rhel76:owls-122140-jdk8-rhel76;latest"                            
+                            "label": "WebLogic Server 14.1.1.0.0 and JDK11 on Red Hat Enterprise Linux 8.7",
+                            "value": "owls-141100-jdk11-rhel87;Oracle:weblogic-141100-jdk11-rhel87:owls-141100-jdk11-rhel87;latest"                            
                         },
                         {
-                            "label": "WebLogic Server 14.1.1.0.0 and JDK8 on Red Hat Enterprise Linux 7.6",
-                            "value": "owls-141100-jdk8-rhel76;Oracle:weblogic-141100-jdk8-rhel76:owls-141100-jdk8-rhel76;latest"                            
+                            "label": "WebLogic Server 14.1.1.0.0 and JDK8 on Red Hat Enterprise Linux 8.7",
+                            "value": "owls-141100-jdk8-rhel87;Oracle:weblogic-141100-jdk8-rhel87:owls-141100-jdk8-rhel87;latest"                            
                         },
                         {
-                            "label": "WebLogic Server 14.1.1.0.0 and JDK11 on Red Hat Enterprise Linux 7.6",
-                            "value": "owls-141100-jdk11-rhel76;Oracle:weblogic-141100-jdk11-rhel76:owls-141100-jdk11-rhel76;latest"                            
+                            "label": "WebLogic Server 12.2.1.4.0 and JDK8 on Red Hat Enterprise Linux 8.7",
+                            "value": "owls-122140-jdk8-rhel87;Oracle:weblogic-122140-jdk8-rhel87:owls-122140-jdk8-rhel87;latest"                            
                         }
                     ],
                     "required": true
@@ -82,12 +89,22 @@
                         "Standard_B1ls",
                         "Standard_A0",
                         "Basic_A0",
-                        "Standard_B1s"
+                        "Standard_B1s",
+                        ${azure.armBased.vmSize.list}
                     ]
                 },
                 "osPlatform": "Linux",
                 "count": "1",
                 "visible": true
+            },
+            {
+                "name": "invalidVMSizeInfo",
+                    "type": "Microsoft.Common.InfoBox",
+                    "visible": "[contains(basics('vmSizeSelect'),'p')]",
+                    "options": {
+                        "icon": "Error",
+                        "text": "The VM size you selected includes the feature letter 'p', indicating it uses ARM CPUs. ARM platform is not supported. Please select a different VM size. For more information, refer to the <a href='https://learn.microsoft.com/azure/virtual-machines/vm-naming-conventions' target='_blank'>Azure virtual machine sizes naming conventions</a>."
+                }
             },
             {
                 "name": "basicsRequired",
@@ -102,8 +119,16 @@
                         "toolTip": "Use only letters and numbers",
                         "constraints": {
                             "required": true,
-                            "regex": "^[a-z0-9A-Z]{1,30}$",
-                            "validationMessage": "The value must be 1-30 characters long and must only contain letters and numbers."
+                            "validations": [
+                                {
+                                    "regex": "^[a-z0-9A-Z]{1,30}$",
+                                    "message": "The value must be 1-30 characters long and must only contain letters and numbers."
+                                },
+                                {
+                                    "isValid": "[not(contains(basics('vmSizeSelect'),'p'))]",
+                                    "message": "ARM platform is not supported. Please select a different VM size."
+                                }
+                            ]
                         },
                         "visible": true
                     },
@@ -268,7 +293,28 @@
                 "visible": true
             }            
         ],
-		"steps":[],
+		"steps":[
+            {
+                "name": "tags",
+                "label": "Tags",
+                "elements": [
+                    {
+                        "name": "tagsByResource",
+                        "type": "Microsoft.Common.TagsByResource",
+                        "resources": [
+                            "${identifier.virtualMachines}",
+                            "${identifier.virtualNetworks}",
+                            "${identifier.networkInterfaces}",
+                            "${identifier.networkSecurityGroups}",
+                            "${identifier.publicIPAddresses}",
+                            "${identifier.storageAccounts}",
+                            "${identifier.resourcesDeployment}"
+                        ],
+                        "toolTip": "Tags help you organize your resources and categorize them for billing or management purposes. You can apply tags to resources deployed by the offer."
+                    }
+                ]
+            }
+        ],
         "outputs": {
             "adminPasswordOrKey": "[if(equals(basics('basicsRequired').adminPasswordOrKey.authenticationType, 'password'), basics('basicsRequired').adminPasswordOrKey.password, basics('basicsRequired').adminPasswordOrKey.sshPublicKey)]",
             "adminUsername": "[basics('basicsRequired').adminUsername]",
@@ -276,6 +322,7 @@
             "dnsLabelPrefix": "[basics('basicsOptional').dnsLabelPrefix]",
             "portsToExpose": "[basics('basicsOptional').portsToExpose]",
             "skuUrnVersion": "[basics('skuUrnVersion')]",
+            "tagsByResource": "[steps('tags').tagsByResource]",
             "useSystemAssignedManagedIdentity": "[basics('basicsOptional').useSystemAssignedManagedIdentity]",
             "vmSize": "[basics('vmSizeSelect')]",
             "Location": "[location()]"

@@ -22,6 +22,12 @@
                 "description": "The sasToken required to access _artifactsLocation.  When the template is deployed using the accompanying scripts, a sasToken will be automatically generated. Use the defaultValue if the staging location is not secured."
             }
         },
+        "_globalResourceNameSuffix": {
+            "type": "string",
+            "metadata": {
+                "description": "The suffix to be added to the globally unique resource name."
+            }
+        },
         "dnszonesARecordSetNames": {
             "type": "array",
             "metadata": {
@@ -62,6 +68,13 @@
             "type": "array",
             "metadata": {
                 "description": "References to Azure resources from where the DNS resource value is taken. Each item is corresponding to values of dnszonesARecordSetNames."
+            }
+        },
+        "tagsByResource": {
+            "type": "object",
+            "defaultValue": {},
+            "metadata": {
+                "description": "${label.tagsLabel}"
             }
         },
         "ttl": {
@@ -107,7 +120,8 @@
         {
             "type": "Microsoft.Resources/deployments",
             "name": "uamiDeployment",
-            "apiVersion": "${azure.apiVersion}",
+            "apiVersion": "${azure.apiVersionForDeployment}",
+            "tags": "[parameters('tagsByResource')['${identifier.resourcesDeployment}']]",
             "properties": {
                 "mode": "Incremental",
                 "templateLink": {
@@ -115,11 +129,17 @@
                     "contentVersion": "1.0.0.0"
                 },
                 "parameters": {
+                    "_globalResourceNameSuffix": {
+                        "value": "[parameters('_globalResourceNameSuffix')]"
+                    },
                     "location": {
                         "value": "[parameters('location')]"
                     },
                     "uamiName": {
                         "value": "[variables('name_deploymentScriptUserDefinedManagedIdentity')]"
+                    },
+                    "tagsByResource": {
+                        "value": "[parameters('tagsByResource')]"
                     }
                 }
             }
@@ -127,10 +147,11 @@
         {
             "type": "Microsoft.Resources/deploymentScripts",
             "apiVersion": "${azure.apiVersionForDeploymentScript}",
+            "tags": "[parameters('tagsByResource')['${identifier.deploymentScripts}']]",
             "dependsOn": [
                 "[resourceId('Microsoft.Resources/deployments', 'uamiDeployment')]"
             ],
-            "name": "script-createDNSRecords",
+            "name": "[concat('script-createDNSRecords', parameters('_globalResourceNameSuffix'))]",
             "location": "[parameters('location')]",
             "identity": {
                 "type": "UserAssigned",

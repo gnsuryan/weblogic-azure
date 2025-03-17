@@ -22,6 +22,12 @@
                 "description": "The sasToken required to access _artifactsLocation.  When the template is deployed using the accompanying scripts, a sasToken will be automatically generated. Use the defaultValue if the staging location is not secured."
             }
         },
+        "_globalResourceNameSuffix": {
+            "type": "string",
+            "metadata": {
+                "description": "A suffix to be appended to all resources created by this template."
+            }
+        },
         "adminPasswordOrKey": {
             "type": "securestring",
             "metadata": {
@@ -66,10 +72,6 @@
                 "description": "Initial Number of Managed Servers that will be configured in the Dynamic Cluster"
             }
         },
-        "guidValue": {
-            "type": "string",
-            "defaultValue": "[newGuid()]"
-        },
         "location": {
             "type": "string",
             "metadata": {
@@ -82,11 +84,23 @@
                 "description": "Provide managed server prefix name"
             }
         },
+        "managedVMPrefix": {
+            "type": "string",
+            "metadata": {
+                "description": "Managed Server hosting VM name prefix."
+            }
+        },
         "maxDynamicClusterSize": {
             "type": "int",
             "defaultValue": 10,
             "metadata": {
                 "description": "Maximum Number of Managed Servers allowed to be configured in the Dynamic Cluster"
+            }
+        },
+        "nsgName": {
+            "type": "string",
+            "metadata": {
+                "description": "Name of the Network Security Group."
             }
         },
         "portsToExpose": {
@@ -109,6 +123,9 @@
                 "owls-122140-jdk8-ol76;Oracle:weblogic-122140-jdk8-ol76:owls-122140-jdk8-ol7;latest",
                 "owls-141100-jdk8-ol76;Oracle:weblogic-141100-jdk8-ol76:owls-141100-jdk8-ol7;latest",
                 "owls-141100-jdk11-ol76;Oracle:weblogic-141100-jdk11-ol76:owls-141100-jdk11-ol7;latest",
+                "owls-141100-jdk11-rhel87;Oracle:weblogic-141100-jdk11-rhel87:owls-141100-jdk11-rhel87;latest",
+                "owls-141100-jdk8-rhel87;Oracle:weblogic-141100-jdk8-rhel87:owls-141100-jdk8-rhel87;latest",
+                "owls-122140-jdk8-rhel87;Oracle:weblogic-122140-jdk8-rhel87:owls-122140-jdk8-rhel87;latest",
                 "owls-122140-jdk8-rhel76;Oracle:weblogic-122140-jdk8-rhel76:owls-122140-jdk8-rhel76;latest",
                 "owls-141100-jdk8-rhel76;Oracle:weblogic-141100-jdk8-rhel76:owls-141100-jdk8-rhel76;latest",
                 "owls-141100-jdk11-rhel76;Oracle:weblogic-141100-jdk11-rhel76:owls-141100-jdk11-rhel76;latest"
@@ -242,7 +259,7 @@
                 ]
             }
         },
-        "const_managedVMPrefix": "[concat(parameters('managedServerPrefix'),'VM')]",
+        "const_managedVMPrefix": "[concat(parameters('managedVMPrefix'),'VM')]",
         "const_mountPointPath": "[concat('/mnt/', variables('name_share'))]",
         "const_publicIPAddressType": "Dynamic",
         "const_requiredPortrange": ",65200-65535,5556",
@@ -252,21 +269,20 @@
         "const_vmSize": "[parameters('vmSize')]",
         "name_linuxImageOfferSKU": "[first(split(parameters('skuUrnVersion'), ';'))]",
         "name_linuxImageVersion": "[last(split(parameters('skuUrnVersion'),';'))]",
-        "name_networkSecurityGroup": "[concat(parameters('dnsLabelPrefix'), '-nsg')]",
-        "name_nic": "NIC",
+        "name_nic": "_NIC",
         "name_nic_with_pub_ip": "[concat(variables('name_nic'), '_with_pub_ip')]",
         "name_nic_without_pub_ip": "[concat(variables('name_nic'), '_without_pub_ip')]",
         "name_outputAdminHost_with_pub_ip": "[concat(parameters('adminVMName'),variables('name_publicIPAddress'))]",
         "name_outputAdminHost_without_pub_ip": "[concat(parameters('adminVMName'),variables('name_nic_without_pub_ip'))]",
-        "name_publicIPAddress": "PublicIP",
+        "name_publicIPAddress": "_PublicIP",
         "name_scriptFile": "setupDynamicClusterDomain.sh",
         "name_share": "wlsshare",
-        "name_storageAccount": "[concat(take(replace(parameters('guidValue'),'-',''),6),'olvm')]",
+        "name_storageAccount": "[concat('olvmstg', parameters('_globalResourceNameSuffix'))]",
         "name_subnet": "[parameters('subnetName')]",
         "name_virtualNetwork": "[parameters('virtualNetworkName')]",
-        "name_privateSaEndpoint": "[concat(take(replace(parameters('guidValue'),'-',''),6),'saep')]",
+        "name_privateSaEndpoint": "[concat('saep', parameters('_globalResourceNameSuffix'))]",
         "ref_fileService": "[resourceId('Microsoft.Storage/storageAccounts/fileServices', variables('name_storageAccount'), 'default')]",
-        "ref_networkSecurityGroup": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('name_networkSecurityGroup'))]",
+        "ref_networkSecurityGroup": "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('nsgName'))]",
         "ref_storage": "[resourceId('Microsoft.Storage/storageAccounts', variables('name_storageAccount'))]",
         "ref_subnet": "[resourceId(parameters('virtualNetworkResourceGroupName'), 'Microsoft.Network/virtualNetworks/subnets', variables('name_virtualNetwork'), variables('name_subnet'))]",
         "t3AdminPort": "[if(not(parameters('enableHTTPAdminListenPort')),'7005','7001')]",
@@ -278,7 +294,7 @@
     "resources": [
         {
             "type": "Microsoft.Resources/deployments",
-            "apiVersion": "${azure.apiVersion}",
+            "apiVersion": "${azure.apiVersionForDeployment}",
             "name": "${dynamic.cluster.start}",
             "properties": {
                 "mode": "Incremental",
@@ -294,7 +310,7 @@
             "apiVersion": "${azure.apiVersionForNetworkSecurityGroups}",
             "type": "Microsoft.Network/networkSecurityGroups",
             "condition": "[equals(parameters('virtualNetworkNewOrExisting'), 'new')]",
-            "name": "[variables('name_networkSecurityGroup')]",
+            "name": "[parameters('nsgName')]",
             "location": "[parameters('location')]",
             "properties": {
                 "securityRules": [
@@ -342,7 +358,7 @@
         },
         {
             "type": "Microsoft.Storage/storageAccounts",
-            "apiVersion": "${azure.apiVersion2}",
+            "apiVersion": "${azure.apiVersionForStorage}",
             "name": "[variables('name_storageAccount')]",
             "location": "[parameters('location')]",
             "sku": {
@@ -381,7 +397,7 @@
         },
         {
             "type": "Microsoft.Storage/storageAccounts/fileServices",
-            "apiVersion": "${azure.apiVersion2}",
+            "apiVersion": "${azure.apiVersionForStorageFileService}",
             "name": "[concat(variables('name_storageAccount'), '/default')]",
             "dependsOn": [
                 "[variables('ref_storage')]"
@@ -393,7 +409,7 @@
         },
         {
             "type": "Microsoft.Storage/storageAccounts/fileServices/shares",
-            "apiVersion": "${azure.apiVersion2}",
+            "apiVersion": "${azure.apiVersionForStorageFileService}",
             "name": "[concat(variables('name_storageAccount'), '/default/', variables('name_share'))]",
             "dependsOn": [
                 "[variables('ref_fileService')]",
@@ -416,7 +432,7 @@
             "properties": {
                 "publicIPAllocationMethod": "[variables('const_publicIPAddressType')]",
                 "dnsSettings": {
-                    "domainNameLabel": "[concat(toLower(parameters('dnsLabelPrefix')),copyindex(),'-',take(replace(parameters('guidValue'),'-',''),10),'-',toLower(parameters('wlsDomainName')))]"
+                    "domainNameLabel": "[take(concat(toLower(parameters('dnsLabelPrefix')), copyindex(),'-', parameters('_globalResourceNameSuffix'),'-',toLower(parameters('wlsDomainName'))), 50)]"
                 }
             }
         },
@@ -555,7 +571,7 @@
                 "diagnosticsProfile": {
                     "bootDiagnostics": {
                         "enabled": true,
-                        "storageUri": "[reference(resourceId('Microsoft.Storage/storageAccounts/', variables('name_storageAccount')), '${azure.apiVersion2}').primaryEndpoints.blob]"
+                        "storageUri": "[reference(resourceId('Microsoft.Storage/storageAccounts/', variables('name_storageAccount')), '${azure.apiVersionForStorage}').primaryEndpoints.blob]"
                     }
                 }
             },
@@ -592,13 +608,13 @@
                     ]
                 },
                 "protectedSettings": {
-                    "commandToExecute": "[concat('sh',' ',variables('name_scriptFile'),' <<< \"',parameters('wlsDomainName'),' ',parameters('wlsUserName'),' ',parameters('wlsPassword'),' ',parameters('managedServerPrefix'),' ',copyindex(),' ',variables('const_managedVMPrefix'),' ',parameters('maxDynamicClusterSize'),' ',parameters('dynamicClusterSize'),' ',parameters('adminVMName'),' ', variables('const_wlsHome'),' ',variables('name_storageAccount'),' ',listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('name_storageAccount')), '${azure.apiVersion2}').keys[0].value,' ',variables('const_mountPointPath'),' ',string(parameters('enableHTTPAdminListenPort')),' ',if(equals(parameters('virtualNetworkNewOrExisting'), 'new'), if(parameters('enableDNSConfiguration'),parameters('customDNSNameForAdminServer'),reference(variables('name_outputAdminHost_with_pub_ip'), '${azure.apiVersion}').dnsSettings.fqdn), reference(variables('name_outputAdminHost_without_pub_ip')).ipConfigurations[0].properties.privateIPAddress),' ',parameters('dnsLabelPrefix'),' ',parameters('location'),' ',parameters('virtualNetworkNewOrExisting'),' ',reference(resourceId('Microsoft.Network/privateEndpoints/', variables('name_privateSaEndpoint')), '${azure.apiVersionForPrivateEndpoint}').customDnsConfigs[0].ipAddresses[0], ' ', 'false','\"')]"
+                    "commandToExecute": "[concat('sh',' ',variables('name_scriptFile'),' <<< \"',parameters('wlsDomainName'),' ',parameters('wlsUserName'),' ',parameters('wlsPassword'),' ',parameters('managedServerPrefix'),' ',copyindex(),' ',variables('const_managedVMPrefix'),' ',parameters('maxDynamicClusterSize'),' ',parameters('dynamicClusterSize'),' ',parameters('adminVMName'),' ', variables('const_wlsHome'),' ',variables('name_storageAccount'),' ',listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('name_storageAccount')), '${azure.apiVersionForStorage}').keys[0].value,' ',variables('const_mountPointPath'),' ',string(parameters('enableHTTPAdminListenPort')),' ',if(equals(parameters('virtualNetworkNewOrExisting'), 'new'), if(parameters('enableDNSConfiguration'),parameters('customDNSNameForAdminServer'),reference(variables('name_outputAdminHost_with_pub_ip'), '${azure.apiVersionForPublicIPAddresses}').dnsSettings.fqdn), reference(variables('name_outputAdminHost_without_pub_ip')).ipConfigurations[0].properties.privateIPAddress),' ',parameters('dnsLabelPrefix'),' ',parameters('location'),' ',parameters('virtualNetworkNewOrExisting'),' ',reference(resourceId('Microsoft.Network/privateEndpoints/', variables('name_privateSaEndpoint')), '${azure.apiVersionForPrivateEndpoint}').customDnsConfigs[0].ipAddresses[0], ' ', 'false','\"')]"
                 }
             }
         },
         {
             "type": "Microsoft.Resources/deployments",
-            "apiVersion": "${azure.apiVersion}",
+            "apiVersion": "${azure.apiVersionForDeployment}",
             "name": "${dynamic.cluster.end}",
             "dependsOn": [
                 "virtualMachineExtensionLoop"
@@ -615,7 +631,7 @@
         },
         {
             "type": "Microsoft.Resources/deployments",
-            "apiVersion": "${azure.apiVersion}",
+            "apiVersion": "${azure.apiVersionForDeployment}",
             "name": "${from.owls-141100-jdk11-ol91}",
             "condition": "[if(contains(variables('name_linuxImageOfferSKU'), 'owls-141100-jdk11-ol91'), bool('true'), bool('false'))]",
             "dependsOn": [
@@ -633,7 +649,7 @@
         },
         {
             "type": "Microsoft.Resources/deployments",
-            "apiVersion": "${azure.apiVersion}",
+            "apiVersion": "${azure.apiVersionForDeployment}",
             "name": "${from.owls-141100-jdk11-ol87}",
             "condition": "[if(contains(variables('name_linuxImageOfferSKU'), 'owls-141100-jdk11-ol87'), bool('true'), bool('false'))]",
             "dependsOn": [
@@ -651,7 +667,7 @@
         },
         {
             "type": "Microsoft.Resources/deployments",
-            "apiVersion": "${azure.apiVersion}",
+            "apiVersion": "${azure.apiVersionForDeployment}",
             "name": "${from.owls-141100-jdk8-ol91}",
             "condition": "[if(contains(variables('name_linuxImageOfferSKU'), 'owls-141100-jdk8-ol91'), bool('true'), bool('false'))]",
             "dependsOn": [
@@ -669,7 +685,7 @@
         },
         {
             "type": "Microsoft.Resources/deployments",
-            "apiVersion": "${azure.apiVersion}",
+            "apiVersion": "${azure.apiVersionForDeployment}",
             "name": "${from.owls-141100-jdk8-ol87}",
             "condition": "[if(contains(variables('name_linuxImageOfferSKU'), 'owls-141100-jdk8-ol87'), bool('true'), bool('false'))]",
             "dependsOn": [
@@ -687,7 +703,7 @@
         },
         {
             "type": "Microsoft.Resources/deployments",
-            "apiVersion": "${azure.apiVersion}",
+            "apiVersion": "${azure.apiVersionForDeployment}",
             "name": "${from.owls-122140-jdk8-ol91}",
             "condition": "[if(contains(variables('name_linuxImageOfferSKU'), 'owls-122140-jdk8-ol91'), bool('true'), bool('false'))]",
             "dependsOn": [
@@ -705,7 +721,7 @@
         },
         {
             "type": "Microsoft.Resources/deployments",
-            "apiVersion": "${azure.apiVersion}",
+            "apiVersion": "${azure.apiVersionForDeployment}",
             "name": "${from.owls-122140-jdk8-ol87}",
             "condition": "[if(contains(variables('name_linuxImageOfferSKU'), 'owls-122140-jdk8-ol87'), bool('true'), bool('false'))]",
             "dependsOn": [
@@ -723,7 +739,7 @@
         },                                                
         {
             "type": "Microsoft.Resources/deployments",
-            "apiVersion": "${azure.apiVersion}",
+            "apiVersion": "${azure.apiVersionForDeployment}",
             "name": "${from.owls-122140-jdk8-ol76}",
             "condition": "[if(contains(variables('name_linuxImageOfferSKU'), 'from.owls-122140-jdk8-ol76'), bool('true'), bool('false'))]",
             "dependsOn": [
@@ -741,7 +757,7 @@
         },
         {
             "type": "Microsoft.Resources/deployments",
-            "apiVersion": "${azure.apiVersion}",
+            "apiVersion": "${azure.apiVersionForDeployment}",
             "name": "${from.owls-141100-jdk8-ol76}",
             "condition": "[if(contains(variables('name_linuxImageOfferSKU'), 'owls-141100-jdk8-ol76'), bool('true'), bool('false'))]",
             "dependsOn": [
@@ -759,7 +775,7 @@
         },
         {
             "type": "Microsoft.Resources/deployments",
-            "apiVersion": "${azure.apiVersion}",
+            "apiVersion": "${azure.apiVersionForDeployment}",
             "name": "${from.owls-141100-jdk11-ol76}",
             "condition": "[if(contains(variables('name_linuxImageOfferSKU'), 'owls-141100-jdk11-ol76'), bool('true'), bool('false'))]",
             "dependsOn": [
@@ -777,7 +793,61 @@
         },
         {
             "type": "Microsoft.Resources/deployments",
-            "apiVersion": "${azure.apiVersion}",
+            "apiVersion": "${azure.apiVersionForDeployment}",
+            "name": "${from.owls-141100-jdk11-rhel87}",
+            "condition": "[if(contains(variables('name_linuxImageOfferSKU'), 'owls-141100-jdk11-rhel87'), bool('true'), bool('false'))]",
+            "dependsOn": [
+                "virtualMachineExtensionLoop"
+            ],
+            "properties": {
+                "mode": "Incremental",
+                "template": {
+                    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+                    "contentVersion": "1.0.0.0",
+                    "resources": [
+                    ]
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "${azure.apiVersionForDeployment}",
+            "name": "${from.owls-141100-jdk8-rhel87}",
+            "condition": "[if(contains(variables('name_linuxImageOfferSKU'), 'owls-141100-jdk8-rhel87'), bool('true'), bool('false'))]",
+            "dependsOn": [
+                "virtualMachineExtensionLoop"
+            ],
+            "properties": {
+                "mode": "Incremental",
+                "template": {
+                    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+                    "contentVersion": "1.0.0.0",
+                    "resources": [
+                    ]
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "${azure.apiVersionForDeployment}",
+            "name": "${from.owls-122140-jdk8-rhel87}",
+            "condition": "[if(contains(variables('name_linuxImageOfferSKU'), 'owls-122140-jdk8-rhel87'), bool('true'), bool('false'))]",
+            "dependsOn": [
+                "virtualMachineExtensionLoop"
+            ],
+            "properties": {
+                "mode": "Incremental",
+                "template": {
+                    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+                    "contentVersion": "1.0.0.0",
+                    "resources": [
+                    ]
+                }
+            }
+        },        
+        {
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "${azure.apiVersionForDeployment}",
             "name": "${from.owls-122140-jdk8-rhel76}",
             "condition": "[if(contains(variables('name_linuxImageOfferSKU'), 'owls-122140-jdk8-rhel76'), bool('true'), bool('false'))]",
             "dependsOn": [
@@ -795,7 +865,7 @@
         },
         {
             "type": "Microsoft.Resources/deployments",
-            "apiVersion": "${azure.apiVersion}",
+            "apiVersion": "${azure.apiVersionForDeployment}",
             "name": "${from.owls-141100-jdk8-rhel76}",
             "condition": "[if(contains(variables('name_linuxImageOfferSKU'), 'owls-141100-jdk8-rhel76'), bool('true'), bool('false'))]",
             "dependsOn": [
@@ -813,7 +883,7 @@
         },
         {
             "type": "Microsoft.Resources/deployments",
-            "apiVersion": "${azure.apiVersion}",
+            "apiVersion": "${azure.apiVersionForDeployment}",
             "name": "${from.owls-141100-jdk11-rhel76}",
             "condition": "[if(contains(variables('name_linuxImageOfferSKU'), 'owls-141100-jdk11-rhel76'), bool('true'), bool('false'))]",
             "dependsOn": [
@@ -845,15 +915,15 @@
         },
         "adminHostName": {
             "type": "string",
-            "value": "[if(equals(parameters('virtualNetworkNewOrExisting'), 'new'), reference(variables('name_outputAdminHost_with_pub_ip'), '${azure.apiVersion}').dnsSettings.fqdn, reference(variables('name_outputAdminHost_without_pub_ip')).ipConfigurations[0].properties.privateIPAddress)]"
+            "value": "[if(equals(parameters('virtualNetworkNewOrExisting'), 'new'), reference(variables('name_outputAdminHost_with_pub_ip'), '${azure.apiVersionForPublicIPAddresses}').dnsSettings.fqdn, reference(variables('name_outputAdminHost_without_pub_ip')).ipConfigurations[0].properties.privateIPAddress)]"
         },
         "adminConsole": {
             "type": "string",
-            "value": "[uri(concat('http://',if(equals(parameters('virtualNetworkNewOrExisting'), 'new'),reference(variables('name_outputAdminHost_with_pub_ip'), '${azure.apiVersion}').dnsSettings.fqdn,reference(variables('name_outputAdminHost_without_pub_ip')).ipConfigurations[0].properties.privateIPAddress),':7001/console/'),'')]"
+            "value": "[uri(concat('http://',if(equals(parameters('virtualNetworkNewOrExisting'), 'new'),reference(variables('name_outputAdminHost_with_pub_ip'), '${azure.apiVersionForPublicIPAddresses}').dnsSettings.fqdn,reference(variables('name_outputAdminHost_without_pub_ip')).ipConfigurations[0].properties.privateIPAddress),':7001/console/'),'')]"
         },
         "adminSecuredConsole": {
             "type": "string",
-            "value": "[uri(concat('https://',if(equals(parameters('virtualNetworkNewOrExisting'), 'new'),reference(variables('name_outputAdminHost_with_pub_ip'), '${azure.apiVersion}').dnsSettings.fqdn,reference(variables('name_outputAdminHost_without_pub_ip')).ipConfigurations[0].properties.privateIPAddress),':7002/console/'),'')]"
+            "value": "[uri(concat('https://',if(equals(parameters('virtualNetworkNewOrExisting'), 'new'),reference(variables('name_outputAdminHost_with_pub_ip'), '${azure.apiVersionForPublicIPAddresses}').dnsSettings.fqdn,reference(variables('name_outputAdminHost_without_pub_ip')).ipConfigurations[0].properties.privateIPAddress),':7002/console/'),'')]"
         },
         "storageAccountName": {
             "type": "string",

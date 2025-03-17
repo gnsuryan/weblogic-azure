@@ -6,6 +6,7 @@ Licensed under the Universal Permissive License v 1.0 as shown at https://oss.or
 param _artifactsLocation string = deployment().properties.templateLink.uri
 @secure()
 param _artifactsLocationSasToken string = ''
+param _globalResourceNameSuffix string
 param _pidEnd string = ''
 param _pidStart string = ''
 param _pidOtherDb string = ''
@@ -40,6 +41,8 @@ param identity object = {}
 @description('JNDI Name for JDBC Datasource')
 param jdbcDataSourceName string = 'jdbc/contoso'
 param location string
+@description('${label.tagsLabel}')
+param tagsByResource object
 @description('UID of WebLogic domain, used in WebLogic Operator.')
 param wlsDomainUID string = 'sample-domain1'
 @secure()
@@ -66,6 +69,7 @@ module configDataSource '_deployment-scripts/_ds-datasource-connection.bicep' = 
   params:{
     _artifactsLocation: _artifactsLocation
     _artifactsLocationSasToken: _artifactsLocationSasToken
+    _globalResourceNameSuffix: _globalResourceNameSuffix
     aksClusterName: aksClusterName
     aksClusterRGName: aksClusterRGName
     azCliVersion: azCliVersion
@@ -80,6 +84,7 @@ module configDataSource '_deployment-scripts/_ds-datasource-connection.bicep' = 
     identity: identity
     jdbcDataSourceName: jdbcDataSourceName
     location: location
+    tagsByResource: tagsByResource
     wlsDomainUID: wlsDomainUID
     wlsPassword: wlsPassword
     wlsUserName: wlsUserName

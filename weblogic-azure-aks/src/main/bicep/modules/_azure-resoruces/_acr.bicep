@@ -1,14 +1,13 @@
 // Copyright (c) 2021, Oracle Corporation and/or its affiliates.
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl.
 
-param acrNamePrefix string = 'wlsaksacr'
+param acrName string
 param location string
-param utcValue string = utcNow()
+@description('${label.tagsLabel}')
+param tagsByResource object
 
-var name_acr= '${acrNamePrefix}${uniqueString(utcValue)}'
-
-resource registries 'Microsoft.ContainerRegistry/registries@2021-09-01' = {
-  name: name_acr
+resource registries 'Microsoft.ContainerRegistry/registries@${azure.apiVersionForContainerRegistries}' = {
+  name: acrName
   location: location
   sku: {
     name: 'Standard'
@@ -38,6 +37,7 @@ resource registries 'Microsoft.ContainerRegistry/registries@2021-09-01' = {
     zoneRedundancy: 'Disabled'
     anonymousPullEnabled: false
   }
+  tags: tagsByResource['${identifier.registries}']
 }
 
-output acrName string = name_acr
+output acrName string = acrName

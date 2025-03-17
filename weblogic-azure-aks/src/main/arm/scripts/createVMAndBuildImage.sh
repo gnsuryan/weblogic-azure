@@ -32,15 +32,6 @@ function cleanup_vm() {
 | where nics == 1 or nic.properties.primary =~ 'true' or isempty(nic) \
 | project nicId = tostring(nic.id)" --query "data[0].nicId" -o tsv)
 
-    # query ip id
-    ipId=$(az graph query -q "Resources \
-| where type =~ 'microsoft.network/networkinterfaces' \
-| where id=~ '${nicId}' \
-| extend ipConfigsCount=array_length(properties.ipConfigurations) \
-| mv-expand ipconfig=properties.ipConfigurations \
-| where ipConfigsCount == 1 or ipconfig.properties.primary =~ 'true' \
-| project  publicIpId = tostring(ipconfig.properties.publicIPAddress.id)" --query "data[0].publicIpId" -o tsv)
-
     # query os disk id
     osDiskId=$(az graph query -q "Resources \
 | where type =~ 'microsoft.compute/virtualmachines' \
@@ -67,8 +58,6 @@ function cleanup_vm() {
     az vm delete --ids $vmId --yes
     echo "deleting nic ${nicId}"
     az network nic delete --ids ${nicId}
-    echo "deleting public-ip ${ipId}"
-    az network public-ip delete --ids ${ipId}
     echo "deleting disk ${osDiskId}"
     az disk delete --yes --ids ${osDiskId}
     echo "deleting vnet ${vnetId}"
@@ -107,20 +96,45 @@ function build_docker_image() {
     # Create vm to build docker image
     vmName="VM-UBUNTU-WLS-AKS-$(date +%s)"
 
+    # az vm image list --publisher Canonical --offer UbuntuServer --all -o table
+    ubuntuImage="Canonical:UbuntuServer:18.04-LTS:latest"
+
+    if [[ "${CPU_PLATFORM}" == "${constARM64Platform}" ]]; then
+        ubuntuImage="Canonical:UbuntuServer:18_04-lts-arm64:latest"
+    fi
+
+    # query AKS vm size
+    # use the same VM size to create the Ubuntu machine, make sure the architecture is matched.
+    local vmSize=$(az aks show --name ${AKS_CLUSTER_NAME} --resource-group ${AKS_CLUSTER_RESOURCEGROUP_NAME} \
+        | jq '.agentPoolProfiles[] | select(.name=="agentpool") | .vmSize' \
+        | tr -d "\"")
+    
+    # if vmSize is empty or null, exit
+    if [[ "${vmSize}" == "" || "${vmSize}" == "null" ]]; then
+        echo_stderr "Failed to obtain VM size of AKS ${AKS_CLUSTER_NAME} in ${AKS_CLUSTER_RESOURCEGROUP_NAME}."
+        exit 1
+    fi
+
+    echo_stdout "TAG_VM: ${TAG_VM}"
+    export TAG_VM=$(echo "${TAG_VM}" \
+        | jq -r 'to_entries | map("\"" + .key + "\"=" + (if .value|type == "string" then "\"\(.value)\"" else "\(.value)" end)) | join(" ")')
+
     # MICROSOFT_INTERNAL
     # Specify tag 'SkipASMAzSecPack' to skip policy 'linuxazuresecuritypackautodeployiaas_1.6'
     # Specify tag 'SkipNRMS*' to skip Microsoft internal NRMS policy, which causes vm-redeployed issue
     az vm create \
     --resource-group ${CURRENT_RESOURCEGROUP_NAME} \
     --name ${vmName} \
-    --image "Canonical:UbuntuServer:18.04-LTS:latest" \
+    --image "${ubuntuImage}" \
     --admin-username azureuser \
     --generate-ssh-keys \
     --nsg-rule NONE \
     --enable-agent true \
     --vnet-name ${vmName}VNET \
     --enable-auto-update false \
-    --tags SkipASMAzSecPack=true SkipNRMSCorp=true SkipNRMSDatabricks=true SkipNRMSDB=true SkipNRMSHigh=true SkipNRMSMedium=true SkipNRMSRDPSSH=true SkipNRMSSAW=true SkipNRMSMgmt=true --verbose
+    --public-ip-address "" \
+    --size ${vmSize} \
+    --tags ${TAG_VM} SkipASMAzSecPack=true SkipNRMSCorp=true SkipNRMSDatabricks=true SkipNRMSDB=true SkipNRMSHigh=true SkipNRMSMedium=true SkipNRMSRDPSSH=true SkipNRMSSAW=true SkipNRMSMgmt=true --verbose
 
     if [[ "${USE_ORACLE_IMAGE,,}" == "${constTrue}" ]]; then
         get_ocr_image_full_path
@@ -128,9 +142,10 @@ function build_docker_image() {
         wlsImagePath="${USER_PROVIDED_IMAGE_PATH}"
     fi
 
-    echo "wlsImagePath: ${wlsImagePath}"
+    echo_stdout "wlsImagePath: ${wlsImagePath}"
     URL_3RD_DATASOURCE=$(echo $URL_3RD_DATASOURCE | tr -d "\"") # remove " from the string
     URL_3RD_DATASOURCE=$(echo $URL_3RD_DATASOURCE | base64 -w0)
+    # Tag for VM extension is not supported yet, see https://github.com/Azure/azure-cli/issues/14341
     az vm extension set --name CustomScript \
         --extension-instance-name wls-image-script \
         --resource-group ${CURRENT_RESOURCEGROUP_NAME} \
@@ -138,7 +153,7 @@ function build_docker_image() {
         --publisher Microsoft.Azure.Extensions \
         --version 2.0 \
         --settings "{ \"fileUris\": [\"${SCRIPT_LOCATION}model.properties\",\"${SCRIPT_LOCATION}genImageModel.sh\",\"${SCRIPT_LOCATION}buildWLSDockerImage.sh\",\"${SCRIPT_LOCATION}common.sh\"]}" \
-        --protected-settings "{\"commandToExecute\":\"echo ${acrPassword} ${ORACLE_ACCOUNT_PASSWORD} | bash buildWLSDockerImage.sh ${wlsImagePath} ${acrLoginServer} ${acrUser} ${newImageTag} ${WLS_APP_PACKAGE_URLS} ${ORACLE_ACCOUNT_NAME} ${WLS_CLUSTER_SIZE} ${ENABLE_CUSTOM_SSL} ${ENABLE_ADMIN_CUSTOM_T3} ${ENABLE_CLUSTER_CUSTOM_T3} ${USE_ORACLE_IMAGE} ${URL_3RD_DATASOURCE} ${ENABLE_PASSWORDLESS_DB_CONNECTION} ${DB_TYPE} \"}"
+        --protected-settings "{\"commandToExecute\":\"echo ${acrPassword} ${ORACLE_ACCOUNT_PASSWORD} | bash buildWLSDockerImage.sh ${wlsImagePath} ${acrLoginServer} ${acrUser} ${newImageTag} ${WLS_APP_PACKAGE_URLS} ${ORACLE_ACCOUNT_NAME} ${WLS_CLUSTER_SIZE} ${ENABLE_CUSTOM_SSL} ${ENABLE_ADMIN_CUSTOM_T3} ${ENABLE_CLUSTER_CUSTOM_T3} ${USE_ORACLE_IMAGE} ${URL_3RD_DATASOURCE} ${ENABLE_PASSWORDLESS_DB_CONNECTION} ${DB_TYPE} ${CPU_PLATFORM} \"}"
     
     cleanup_vm
 }
@@ -151,6 +166,7 @@ export script="${BASH_SOURCE[0]}"
 export scriptDir="$(cd "$(dirname "${script}")" && pwd)"
 
 source ${scriptDir}/common.sh
+source ${scriptDir}/utility.sh
 
 export newImageTag=$1
 export acrLoginServer=$2

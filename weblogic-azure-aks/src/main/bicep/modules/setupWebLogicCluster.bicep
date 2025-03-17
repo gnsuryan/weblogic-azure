@@ -1,4 +1,4 @@
-// Copyright (c) 2021, Oracle Corporation and/or its affiliates.
+// Copyright (c) 2021, 2024, Oracle Corporation and/or its affiliates.
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl.
 
 /*
@@ -21,6 +21,7 @@ param _pidEnd string = 'pid-wls-end'
 param _pidStart string = 'pid-wls-start'
 param _pidSSLEnd string = 'pid-ssl-end'
 param _pidSSLStart string = 'pid-ssl-start'
+param _globalResourceNameSuffix string
 @description('true to use resource or workspace permissions. false to require workspace permissions.')
 param aciResourcePermissions bool = true
 @description('Number of days to retain data in Azure Monitor workspace.')
@@ -28,18 +29,22 @@ param aciRetentionInDays int = 120
 @description('Pricing tier: PerGB2018 or legacy tiers (Free, Standalone, PerNode, Standard or Premium) which are not available to all customers.')
 param aciWorkspaceSku string = 'pergb2018'
 param acrName string = ''
+param acrResourceGroupName string = ''
+param aksAgentAvailabilityZones array = []
 @maxLength(12)
 @minLength(1)
 @description('The name for this node pool. Node pool must contain only lowercase letters and numbers. For Linux node pools the name cannot be longer than 12 characters.')
 param aksAgentPoolName string = 'agentpool'
 @maxValue(10000)
 @minValue(1)
-@description('The number of nodes that should be created along with the cluster. You will be able to resize the cluster later.')
+@description('Set the minimum node count for the cluster..')
 param aksAgentPoolNodeCount int = 3
+@maxValue(1000)
+@minValue(3)
+@description('Set the maximum node count for the cluster.')
+param aksAgentPoolNodeMaxCount int = 5
 @description('The size of the virtual machines that will form the nodes in the cluster. This cannot be changed after creating the cluster')
 param vmSize string = 'Standard_DS2_v2'
-@description('Prefix for cluster name. Only The name can contain only letters, numbers, underscores and hyphens. The name must start with letter or number.')
-param aksClusterNamePrefix string = 'wlsonaks'
 @description('Resource group name of an existing AKS cluster.')
 param aksClusterRGName string = ''
 @description('Name of an existing AKS cluster.')
@@ -51,9 +56,9 @@ param appPackageUrls array = []
 @description('The number of managed server to start.')
 param appReplicas int = 2
 param azCliVersion string = ''
+param cpuPlatform string = 'linux/amd64'
 @description('true to create a new AKS cluster.')
 param createAKSCluster bool = true
-param createStorageAccount bool = false
 param databaseType string = 'oracle'
 param dbDriverLibrariesUrls array = []
 @description('In addition to the CPU and memory metrics included in AKS by default, you can enable Container Insights for more comprehensive data on the overall performance and health of your cluster. Billing is based on data ingestion and retention settings.')
@@ -64,6 +69,7 @@ param enableAdminT3Tunneling bool = false
 param enableClusterT3Tunneling bool = false
 param enablePswlessConnection bool = false
 param enablePV bool = false
+param fileShareName string = ''
 @description('An user assigned managed identity. Make sure the identity has permission to create/update/delete/list Azure resources.')
 param identity object = {}
 param isSSOSupportEntitled bool
@@ -78,7 +84,10 @@ param ocrSSOUser string
 param storageAccountName string = 'stg-contoso'
 param t3ChannelAdminPort int = 7005
 param t3ChannelClusterPort int = 8011
+@description('${label.tagsLabel}')
+param tagsByResource object
 param userProvidedAcr string = 'null'
+param userProvidedAcrRgName string = 'null'
 param userProvidedImagePath string = 'null'
 param useOracleImage bool = true
 @secure()
@@ -140,7 +149,7 @@ module pidSSLStart './_pids/_pid.bicep' = if (enableCustomSSL) {
   }
 }
 
-resource existingAKSCluster 'Microsoft.ContainerService/managedClusters@2022-09-01' existing = if (!createAKSCluster) {
+resource existingAKSCluster 'Microsoft.ContainerService/managedClusters@${azure.apiVersionForManagedClusters}' existing = if (!createAKSCluster) {
   name: aksClusterName
   scope: resourceGroup(aksClusterRGName)
 }
@@ -154,13 +163,16 @@ module aksClusterDeployment './_azure-resoruces/_aks.bicep' = if (createAKSClust
     aciResourcePermissions: aciResourcePermissions
     aciRetentionInDays: aciRetentionInDays
     aciWorkspaceSku: aciWorkspaceSku
+    agentAvailabilityZones: aksAgentAvailabilityZones
     aksAgentPoolName: aksAgentPoolName
     aksAgentPoolNodeCount: aksAgentPoolNodeCount
+    aksAgentPoolNodeMaxCount: aksAgentPoolNodeMaxCount
     aksAgentPoolVMSize: vmSize
-    aksClusterNamePrefix: aksClusterNamePrefix
+    aksClusterName: aksClusterName
     aksVersion: aksVersion
     enableAzureMonitoring: enableAzureMonitoring
     location: location
+    tagsByResource: tagsByResource
   }
   dependsOn: [
     pidStart
@@ -168,11 +180,13 @@ module aksClusterDeployment './_azure-resoruces/_aks.bicep' = if (createAKSClust
 }
 
 // enableAppGWIngress: if true, will create storage for certificates.
-module storageDeployment './_azure-resoruces/_storage.bicep' = if (createStorageAccount) {
+module storageDeployment './_azure-resoruces/_storage.bicep' = {
   name: 'storage-deployment'
   params: {
+    fileShareName: fileShareName
     location: location
     storageAccountName: storageAccountName
+    tagsByResource: tagsByResource
   }
   dependsOn: [
     pidStart
@@ -187,12 +201,15 @@ module wlsDomainDeployment './_deployment-scripts/_ds-create-wls-cluster.bicep' 
   params: {
     _artifactsLocation: _artifactsLocation
     _artifactsLocationSasToken: _artifactsLocationSasToken
+    _globalResourceNameSuffix: _globalResourceNameSuffix
     aksClusterRGName: createAKSCluster ? resourceGroup().name : aksClusterRGName
-    aksClusterName: createAKSCluster ? aksClusterDeployment.outputs.aksClusterName : aksClusterName
+    aksClusterName: aksClusterName
     acrName: useOracleImage ? acrName : userProvidedAcr
+    acrResourceGroupName: useOracleImage ? acrResourceGroupName : userProvidedAcrRgName
     appPackageUrls: appPackageUrls
     appReplicas: appReplicas
     azCliVersion: azCliVersion
+    cpuPlatform: cpuPlatform
     databaseType: databaseType
     dbDriverLibrariesUrls: dbDriverLibrariesUrls
     enableCustomSSL: enableCustomSSL
@@ -200,6 +217,7 @@ module wlsDomainDeployment './_deployment-scripts/_ds-create-wls-cluster.bicep' 
     enableClusterT3Tunneling: enableClusterT3Tunneling
     enablePswlessConnection: enablePswlessConnection
     enablePV: enablePV
+    fileShareName: fileShareName
     identity: identity
     isSSOSupportEntitled: isSSOSupportEntitled
     location: location
@@ -209,6 +227,7 @@ module wlsDomainDeployment './_deployment-scripts/_ds-create-wls-cluster.bicep' 
     storageAccountName: storageAccountName
     t3ChannelAdminPort: t3ChannelAdminPort
     t3ChannelClusterPort: t3ChannelClusterPort
+    tagsByResource: tagsByResource
     userProvidedImagePath: userProvidedImagePath
     useOracleImage: useOracleImage
     wdtRuntimePassword: wdtRuntimePassword
@@ -260,7 +279,7 @@ module pidEnd './_pids/_pid.bicep' = {
   ]
 }
 
-output aksClusterName string = createAKSCluster ? aksClusterDeployment.outputs.aksClusterName : aksClusterName
+output aksClusterName string = aksClusterName
 output aksClusterRGName string = createAKSCluster ? resourceGroup().name : aksClusterRGName
 output aksNodeRgName string = createAKSCluster? aksClusterDeployment.outputs.aksNodeRgName : existingAKSCluster.properties.nodeResourceGroup
 output adminServerEndPoint string = format('http://{0}-admin-server.{0}-ns.svc.cluster.local:7001/console', wlsDomainUID)

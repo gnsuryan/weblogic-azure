@@ -53,6 +53,11 @@ jobs:
           echo "tagname=${tagname}" >> $GITHUB_ENV
           echo "ref=${ref}" >> $GITHUB_ENV
       - uses: actions/checkout@v2.3.4
+      - name: Set up Maven with GitHub token
+        uses: ./.github/actions/setupmaven
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/checkout@v2.3.4
       - name: Set dependency reference
         uses: ./.github/actions/setvars
         with:
@@ -69,12 +74,6 @@ jobs:
           path: ${{ env.repoName }}
           ref: ${{ env.ref }}
           token: ${{ env.gitToken }}
-      - name: Checkout azure-javaee-iaas
-        uses: actions/checkout@v2
-        with:
-          repository: Azure/azure-javaee-iaas
-          path: azure-javaee-iaas
-          ref: ${{ env.refJavaee }}
       - name: Checkout arm-ttk
         uses: actions/checkout@v2
         with:
@@ -87,25 +86,16 @@ jobs:
           chmod +x ./bicep
           sudo mv ./bicep /usr/local/bin/bicep
           bicep --version
-      - name: Set up JDK 1.8
-        uses: actions/setup-java@v1
-        with:
-          java-version: 1.8
-      - name: Build azure-javaee-iaas
-        run: mvn -DskipTests clean install --file azure-javaee-iaas/pom.xml
-
       - name: Build ${{ env.repoName }}
         run: |
           cd ${{ env.repoName }}
-          mvn -Ptemplate-validation-tests clean install --file weblogic-azure-vm/arm-oraclelinux-wls/pom.xml -Dgit.repo.owner=${{ env.repoOwner }} -Dgit.tag=${{ env.ref }}
-          mvn -Ptemplate-validation-tests clean install --file weblogic-azure-vm/arm-oraclelinux-wls-admin/pom.xml -Dgit.repo.owner=${{ env.repoOwner }} -Dgit.tag=${{ env.ref }}
-          mvn -Ptemplate-validation-tests clean install --file weblogic-azure-vm/arm-oraclelinux-wls-cluster/pom.xml -Dgit.repo.owner=${{ env.repoOwner }} -Dgit.tag=${{ env.ref }}
-          mvn -Ptemplate-validation-tests clean install --file weblogic-azure-vm/arm-oraclelinux-wls-dynamic-cluster/pom.xml -Dgit.repo.owner=${{ env.repoOwner }} -Dgit.tag=${{ env.ref }}
+          mvn -Ptemplate-validation-tests clean install --file weblogic-azure-vm/pom.xml -Dgit.repo.owner=${{ env.repoOwner }} -Dgit.tag=${{ env.ref }}
 
-          echo "build bicep files"
-          bicep build weblogic-azure-aks/src/main/bicep/mainTemplate.bicep --outfile weblogic-azure-aks/src/main/arm/mainTemplate.json
-          bicep build weblogic-azure-aks/src/main/bicep/modules/setupDBConnection.bicep --outfile weblogic-azure-aks/src/main/arm/dbTemplate.json
-          bicep build weblogic-azure-aks/src/main/bicep/modules/updateWebLogicApplications.bicep --outfile weblogic-azure-aks/src/main/arm/updateAppTemplate.json
+          mvn -Ptemplate-validation-tests -Pbicep clean install --file weblogic-azure-aks/pom.xml -Dgit.repo.owner=${{ env.repoOwner }} -Dgit.tag=${{ env.ref }}
+          ls weblogic-azure-aks/target/bicep
+          bicep build weblogic-azure-aks/target/bicep/mainTemplate.bicep --outfile weblogic-azure-aks/src/main/arm/mainTemplate.json
+          bicep build weblogic-azure-aks/target/bicep/modules/setupDBConnection.bicep --outfile weblogic-azure-aks/src/main/arm/dbTemplate.json
+          bicep build weblogic-azure-aks/target/bicep/modules/updateWebLogicApplications.bicep --outfile weblogic-azure-aks/src/main/arm/updateAppTemplate.json
 
       - name: Create new tag
         run: |
@@ -131,34 +121,13 @@ jobs:
           git checkout -b ${tagbranch}
 
           # replace pids
-          export targetARM="target"
-          for d in weblogic-azure-vm/*/ ; do
-              # for admin offer and single node offer
-              if [ -d ${d}${targetARM} ];then
-                list=$(find ${d}${targetARM} | grep ".json")
-                  for file in ${list}; do
-                      sourcePath=$(echo "$file" | sed "s:target:src/main:g")
-                      if test -f "$sourcePath"; then
-                          echo "Replace ${sourcePath} with ${file}"
-                          cp -f $file $sourcePath
-                      fi
-                  done
+          list=$(find weblogic-azure-vm -name "*.json" | grep "\/target\/")
+          for file in ${list}; do
+              sourcePath=$(echo "$file" | sed "s:target:src/main:g")
+              if test -f "$sourcePath"; then
+                  echo "Replace ${sourcePath} with ${file}"
+                  cp -f $file $sourcePath
               fi
-
-              for d1 in $d*/; do
-                  if [ ! -d ${d1}${targetARM} ];then  
-                      continue;
-                  fi
-
-                  list=$(find ${d1}${targetARM} | grep ".json")
-                  for file in ${list}; do
-                      sourcePath=$(echo "$file" | sed "s:target:src/main:g")
-                      if test -f "$sourcePath"; then
-                          echo "Replace ${sourcePath} with ${file}"
-                          cp -f $file $sourcePath
-                      fi
-                  done
-              done
           done
 
           git status

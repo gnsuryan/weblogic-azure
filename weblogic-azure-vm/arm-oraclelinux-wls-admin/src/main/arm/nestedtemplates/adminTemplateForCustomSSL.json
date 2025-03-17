@@ -21,6 +21,12 @@
             "description": "The sasToken required to access _artifactsLocation.  When the template is deployed using the accompanying scripts, a sasToken will be automatically generated. Use the defaultValue if the staging location is not secured."
          }
       },
+      "_globalResourceNameSuffix": {
+         "type": "string",
+         "metadata": {
+            "description": "A unique suffix that was specified during the deployment of the solution template."
+         }
+      },
       "adminPasswordOrKey": {
          "type": "securestring",
          "metadata": {
@@ -89,51 +95,57 @@
          "type": "string",
          "defaultValue": "[newGuid()]"
       },
-      "keyVaultCustomIdentityKeyStoreData": {
+      "nsgName": {
+         "type": "string",
+         "metadata": {
+            "description": "Network Security Group name"
+         }
+      },
+      "sslCustomIdentityKeyStoreData": {
          "type": "securestring",
          "metadata": {
             "description": "Weblogic Custom Identity Keystore Data"
          }
       },
-      "keyVaultCustomIdentityKeyStorePassPhrase": {
+      "sslCustomIdentityKeyStorePassPhrase": {
          "type": "securestring",
          "metadata": {
             "description": "Weblogic Custom Identity Keystore Passphrase"
          }
       },
-      "keyVaultCustomIdentityKeyStoreType": {
+      "sslCustomIdentityKeyStoreType": {
          "type": "string",
          "metadata": {
             "description": "Weblogic Custom Identity Keystore Type"
          },
          "defaultValue": "JKS"
       },
-      "keyVaultCustomTrustKeyStoreData": {
+      "sslCustomTrustKeyStoreData": {
          "type": "securestring",
          "metadata": {
             "description": "Weblogic Custom Trust Store Data"
          }
       },
-      "keyVaultCustomTrustKeyStorePassPhrase": {
+      "sslCustomTrustKeyStorePassPhrase": {
          "type": "securestring",
          "metadata": {
             "description": "Weblogic Custom Trust Store Passphrase"
          }
       },
-      "keyVaultCustomTrustKeyStoreType": {
+      "sslCustomTrustKeyStoreType": {
          "type": "string",
          "metadata": {
             "description": "Weblogic Custom Trust Store Type"
          },
          "defaultValue": "JKS"
       },
-      "keyVaultPrivateKeyAlias": {
+      "sslPrivateKeyAlias": {
          "type": "string",
          "metadata": {
             "description": "Weblogic Server Private Key Alias"
          }
       },
-      "keyVaultPrivateKeyPassPhrase": {
+      "sslPrivateKeyPassPhrase": {
          "type": "securestring",
          "metadata": {
             "description": "Weblogic Server Private Key Pass Phrase"
@@ -165,6 +177,9 @@
             "owls-122140-jdk8-ol76;Oracle:weblogic-122140-jdk8-ol76:owls-122140-jdk8-ol7;latest",
             "owls-141100-jdk8-ol76;Oracle:weblogic-141100-jdk8-ol76:owls-141100-jdk8-ol7;latest",
             "owls-141100-jdk11-ol76;Oracle:weblogic-141100-jdk11-ol76:owls-141100-jdk11-ol7;latest",
+            "owls-141100-jdk11-rhel87;Oracle:weblogic-141100-jdk11-rhel87:owls-141100-jdk11-rhel87;latest",
+            "owls-141100-jdk8-rhel87;Oracle:weblogic-141100-jdk8-rhel87:owls-141100-jdk8-rhel87;latest",
+            "owls-122140-jdk8-rhel87;Oracle:weblogic-122140-jdk8-rhel87:owls-122140-jdk8-rhel87;latest",
             "owls-122140-jdk8-rhel76;Oracle:weblogic-122140-jdk8-rhel76:owls-122140-jdk8-rhel76;latest",
             "owls-141100-jdk8-rhel76;Oracle:weblogic-141100-jdk8-rhel76:owls-141100-jdk8-rhel76;latest",
             "owls-141100-jdk11-rhel76;Oracle:weblogic-141100-jdk11-rhel76:owls-141100-jdk11-rhel76;latest"
@@ -235,6 +250,13 @@
             "description": "Address prefix of the subnet"
          }
       },
+      "tagsByResource": {
+         "type": "object",
+         "defaultValue": {},
+         "metadata": {
+            "description": "${label.tagsLabel}"
+         }
+      },
       "vmSize": {
          "type": "string",
          "defaultValue": "Standard_A3",
@@ -286,18 +308,17 @@
       "const_wlsHome": "/u01/app/wls/install/oracle/middleware/oracle_home",
       "name_linuxImageOfferSKU": "[first(split(parameters('skuUrnVersion'), ';'))]",
       "name_linuxImageVersion": "[last(split(parameters('skuUrnVersion'),';'))]",
-      "name_networkSecurityGroup": "[concat(parameters('dnsLabelPrefix'), '-nsg')]",
-      "name_nic": "adminServerVM_NIC",
+      "name_nic": "[concat('adminServerVM_NIC_', parameters('_globalResourceNameSuffix'))]",
       "name_nic_with_pub_ip": "[concat(variables('name_nic'), '_with_pub_ip')]",
       "name_nic_without_pub_ip": "[concat(variables('name_nic'), '_without_pub_ip')]",
-      "name_publicIPAddress": "adminServerVM_PublicIP",
+      "name_publicIPAddress": "[concat('adminServerVM_PublicIP_', parameters('_globalResourceNameSuffix'))]",
       "name_privateSaEndpoint": "[concat(take(replace(parameters('guidValue'),'-',''),6),'saep')]",
       "name_scriptFile": "setupAdminDomain.sh",
-      "name_storageAccount": "[concat(take(replace(parameters('guidValue'),'-',''),6),'olvm')]",
+      "name_storageAccount": "[concat('olvmstg', parameters('_globalResourceNameSuffix'))]",
       "name_subnet": "[parameters('subnetName')]",
-      "name_share": "wlsshare",
+      "name_share": "[concat('wlsshare', parameters('_globalResourceNameSuffix'))]",
       "name_virtualNetwork": "[parameters('virtualNetworkName')]",
-      "ref_networkSecurityGroup": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('name_networkSecurityGroup'))]",
+      "ref_networkSecurityGroup": "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('nsgName'))]",
       "ref_subnet": "[resourceId(parameters('virtualNetworkResourceGroupName'), 'Microsoft.Network/virtualNetworks/subnets', variables('name_virtualNetwork'), variables('name_subnet'))]",
       "ref_storage": "[resourceId('Microsoft.Storage/storageAccounts', variables('name_storageAccount'))]",
       "ref_fileService": "[resourceId('Microsoft.Storage/storageAccounts/fileServices', variables('name_storageAccount'), 'default')]",
@@ -309,9 +330,10 @@
    },
    "resources": [
       {
-         "apiVersion": "${azure.apiVersion}",
+         "apiVersion": "${azure.apiVersionForDeployment}",
          "name": "${admin.admin.start}",
          "type": "Microsoft.Resources/deployments",
+         "tags": "[parameters('tagsByResource')['${identifier.resourcesDeployment}']]",
          "properties": {
             "mode": "Incremental",
             "template": {
@@ -323,9 +345,10 @@
          }
       },
       {
-         "apiVersion": "${azure.apiVersion}",
+         "apiVersion": "${azure.apiVersionForDeployment}",
          "name": "${admin.ssl.start}",
          "type": "Microsoft.Resources/deployments",
+         "tags": "[parameters('tagsByResource')['${identifier.resourcesDeployment}']]",
          "properties": {
             "mode": "Incremental",
             "template": {
@@ -339,8 +362,9 @@
       {
          "apiVersion": "${azure.apiVersionForNetworkSecurityGroups}",
          "type": "Microsoft.Network/networkSecurityGroups",
+         "tags": "[parameters('tagsByResource')['${identifier.networkSecurityGroups}']]",
          "condition": "[equals(parameters('virtualNetworkNewOrExisting'), 'new')]",
-         "name": "[variables('name_networkSecurityGroup')]",
+         "name": "[parameters('nsgName')]",
          "location": "[parameters('location')]",
          "properties": {
             "securityRules": [
@@ -388,8 +412,9 @@
       },
       {
          "type": "Microsoft.Storage/storageAccounts",
-         "apiVersion": "${azure.apiVersion2}",
+         "apiVersion": "${azure.apiVersionForStorage}",
          "name": "[variables('name_storageAccount')]",
+         "tags": "[parameters('tagsByResource')['${identifier.storageAccounts}']]",
          "location": "[parameters('location')]",
          "sku": {
             "name": "[variables('const_storageAccountType')]"
@@ -399,13 +424,14 @@
             "supportsHttpsTrafficOnly": false
          },
          "dependsOn": [
-            "[variables('name_networkSecurityGroup')]"
+            "[parameters('nsgName')]"
          ]
       },
       {
          "apiVersion": "${azure.apiVersionForPrivateEndpoint}",
          "name": "[variables('name_privateSaEndpoint')]",
          "type": "Microsoft.Network/privateEndpoints",
+         "tags": "[parameters('tagsByResource')['${identifier.privateEndpoints}']]",
          "location": "[parameters('location')]",
          "properties": {
                "privateLinkServiceConnections": [
@@ -429,7 +455,7 @@
       },
       {
          "type": "Microsoft.Storage/storageAccounts/fileServices",
-         "apiVersion": "${azure.apiVersion2}",
+         "apiVersion": "${azure.apiVersionForStorageFileService}",
          "name": "[concat(variables('name_storageAccount'), '/default')]",
          "dependsOn": [
             "[variables('ref_storage')]"
@@ -441,7 +467,7 @@
       },
       {
          "type": "Microsoft.Storage/storageAccounts/fileServices/shares",
-         "apiVersion": "${azure.apiVersion2}",
+         "apiVersion": "${azure.apiVersionForStorageFileService}",
          "name": "[concat(variables('name_storageAccount'), '/default/', variables('name_share'))]",
          "dependsOn": [
             "[variables('ref_fileService')]",
@@ -454,6 +480,7 @@
       {
          "apiVersion": "${azure.apiVersionForPublicIPAddresses}",
          "type": "Microsoft.Network/publicIPAddresses",
+         "tags": "[parameters('tagsByResource')['${identifier.publicIPAddresses}']]",
          "condition": "[equals(parameters('virtualNetworkNewOrExisting'), 'new')]",
          "name": "[variables('name_publicIPAddress')]",
          "location": "[parameters('location')]",
@@ -467,6 +494,7 @@
       {
          "apiVersion": "${azure.apiVersionForVirtualNetworks}",
          "type": "Microsoft.Network/virtualNetworks",
+         "tags": "[parameters('tagsByResource')['${identifier.virtualNetworks}']]",
          "condition": "[equals(parameters('virtualNetworkNewOrExisting'), 'new')]",
          "name": "[variables('name_virtualNetwork')]",
          "location": "[parameters('location')]",
@@ -493,6 +521,7 @@
       {
          "apiVersion": "${azure.apiVersionForNetworkInterfaces}",
          "type": "Microsoft.Network/networkInterfaces",
+         "tags": "[parameters('tagsByResource')['${identifier.networkInterfaces}']]",
          "condition": "[equals(parameters('virtualNetworkNewOrExisting'), 'new')]",
          "name": "[variables('name_nic_with_pub_ip')]",
          "location": "[parameters('location')]",
@@ -523,6 +552,7 @@
       {
          "apiVersion": "${azure.apiVersionForNetworkInterfaces}",
          "type": "Microsoft.Network/networkInterfaces",
+         "tags": "[parameters('tagsByResource')['${identifier.networkInterfaces}']]",
          "condition": "[equals(parameters('virtualNetworkNewOrExisting'), 'existing')]",
          "name": "[variables('name_nic_without_pub_ip')]",
          "location": "[parameters('location')]",
@@ -543,6 +573,7 @@
       {
          "apiVersion": "${azure.apiVersionForVirtualMachines}",
          "type": "Microsoft.Compute/virtualMachines",
+         "tags": "[parameters('tagsByResource')['${identifier.virtualMachines}']]",
          "name": "[parameters('adminVMName')]",
          "location": "[parameters('location')]",
          "dependsOn": [
@@ -584,7 +615,7 @@
             "diagnosticsProfile": {
                "bootDiagnostics": {
                   "enabled": true,
-                  "storageUri": "[reference(resourceId('Microsoft.Storage/storageAccounts/', variables('name_storageAccount')), '${azure.apiVersion2}').primaryEndpoints.blob]"
+                  "storageUri": "[reference(resourceId('Microsoft.Storage/storageAccounts/', variables('name_storageAccount')), '${azure.apiVersionForStorage}').primaryEndpoints.blob]"
                }
             }
          },
@@ -597,6 +628,7 @@
       {
          "apiVersion": "${azure.apiVersionForVirtualMachines}",
          "type": "Microsoft.Compute/virtualMachines/extensions",
+         "tags": "[parameters('tagsByResource')['${identifier.virtualMachinesExtensions}']]",
          "name": "[concat(parameters('adminVMName'),'/newuserscript')]",
          "location": "[parameters('location')]",
          "dependsOn": [
@@ -619,13 +651,14 @@
                ]
             },
             "protectedSettings": {
-               "commandToExecute": "[concat('sh',' ',variables('name_scriptFile'),' <<< \"',parameters('wlsDomainName'),' ',parameters('wlsUserName'),' ',parameters('wlsPassword'),' ',parameters('adminVMName'),' ', variables('const_wlsHome'),' ',variables('name_storageAccount'),' ',listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('name_storageAccount')), '${azure.apiVersion2}').keys[0].value,' ',variables('const_mountPointPath'),' ',string(parameters('enableHTTPAdminListenPort')),' ',if(equals(parameters('virtualNetworkNewOrExisting'), 'new'), if(parameters('enableCustomDNS'), parameters('customDNSName'), reference(variables('name_publicIPAddress')).dnsSettings.fqdn), reference(variables('name_nic_without_pub_ip')).ipConfigurations[0].properties.privateIPAddress),' ',parameters('dnsLabelPrefix'),' ',parameters('location'),' ',parameters('virtualNetworkNewOrExisting'),' ',reference(resourceId('Microsoft.Network/privateEndpoints/', variables('name_privateSaEndpoint')), '${azure.apiVersionForPrivateEndpoint}').customDnsConfigs[0].ipAddresses[0],' ',string(parameters('enableCustomSSL')),' ',if(parameters('enableCustomSSL'),base64(parameters('keyVaultCustomIdentityKeyStoreData')),''),' ',if(parameters('enableCustomSSL'),base64(parameters('keyVaultCustomIdentityKeyStorePassPhrase')),''),' ',if(parameters('enableCustomSSL'),base64(parameters('keyVaultCustomIdentityKeyStoreType')),''),' ',if(parameters('enableCustomSSL'),base64(parameters('keyVaultCustomTrustKeyStoreData')),''),' ',if(parameters('enableCustomSSL'),base64(parameters('keyVaultCustomTrustKeyStorePassPhrase')),''),' ',if(parameters('enableCustomSSL'),base64(parameters('keyVaultCustomTrustKeyStoreType')),''),' ',if(parameters('enableCustomSSL'),base64(parameters('keyVaultPrivateKeyAlias')),''),' ',if(parameters('enableCustomSSL'),base64(parameters('keyVaultPrivateKeyPassPhrase')),''),'\"')]"            }
+               "commandToExecute": "[concat('sh',' ',variables('name_scriptFile'),' <<< \"',parameters('wlsDomainName'),' ',parameters('wlsUserName'),' ',parameters('wlsPassword'),' ',parameters('adminVMName'),' ', variables('const_wlsHome'),' ',variables('name_storageAccount'),' ',listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('name_storageAccount')), '${azure.apiVersionForStorage}').keys[0].value,' ',variables('const_mountPointPath'),' ',string(parameters('enableHTTPAdminListenPort')),' ',if(equals(parameters('virtualNetworkNewOrExisting'), 'new'), if(parameters('enableCustomDNS'), parameters('customDNSName'), reference(variables('name_publicIPAddress')).dnsSettings.fqdn), reference(variables('name_nic_without_pub_ip')).ipConfigurations[0].properties.privateIPAddress),' ',parameters('dnsLabelPrefix'),' ',parameters('location'),' ',parameters('virtualNetworkNewOrExisting'),' ',reference(resourceId('Microsoft.Network/privateEndpoints/', variables('name_privateSaEndpoint')), '${azure.apiVersionForPrivateEndpoint}').customDnsConfigs[0].ipAddresses[0],' ',variables('name_share'),' ',string(parameters('enableCustomSSL')),' ',if(parameters('enableCustomSSL'),base64(parameters('sslCustomIdentityKeyStoreData')),''),' ',if(parameters('enableCustomSSL'),base64(parameters('sslCustomIdentityKeyStorePassPhrase')),''),' ',if(parameters('enableCustomSSL'),base64(parameters('sslCustomIdentityKeyStoreType')),''),' ',if(parameters('enableCustomSSL'),base64(parameters('sslCustomTrustKeyStoreData')),''),' ',if(parameters('enableCustomSSL'),base64(parameters('sslCustomTrustKeyStorePassPhrase')),''),' ',if(parameters('enableCustomSSL'),base64(parameters('sslCustomTrustKeyStoreType')),''),' ',if(parameters('enableCustomSSL'),base64(parameters('sslPrivateKeyAlias')),''),' ',if(parameters('enableCustomSSL'),base64(parameters('sslPrivateKeyPassPhrase')),''), '\"')]"            }
          }
       },
       {
-         "apiVersion": "${azure.apiVersion}",
+         "apiVersion": "${azure.apiVersionForDeployment}",
          "name": "${admin.ssl.end}",
          "type": "Microsoft.Resources/deployments",
+         "tags": "[parameters('tagsByResource')['${identifier.resourcesDeployment}']]",
          "dependsOn": [
             "[resourceId('Microsoft.Compute/virtualMachines/extensions', parameters('adminVMName'), 'newuserscript')]"
          ],
@@ -640,9 +673,10 @@
          }
       },
       {
-         "apiVersion": "${azure.apiVersion}",
+         "apiVersion": "${azure.apiVersionForDeployment}",
          "name": "${admin.admin.end}",
          "type": "Microsoft.Resources/deployments",
+         "tags": "[parameters('tagsByResource')['${identifier.resourcesDeployment}']]",
          "dependsOn": [
             "[resourceId('Microsoft.Compute/virtualMachines/extensions', parameters('adminVMName'), 'newuserscript')]"
          ],
@@ -658,8 +692,9 @@
       },
       {
          "type": "Microsoft.Resources/deployments",
-         "apiVersion": "${azure.apiVersion}",
+         "apiVersion": "${azure.apiVersionForDeployment}",
          "name": "${from.owls-141100-jdk11-ol91}",
+         "tags": "[parameters('tagsByResource')['${identifier.resourcesDeployment}']]",
          "condition": "[if(contains(variables('name_linuxImageOfferSKU'), 'owls-141100-jdk11-ol91'), bool('true'), bool('false'))]",
          "dependsOn": [
             "[resourceId('Microsoft.Compute/virtualMachines/extensions', parameters('adminVMName'), 'newuserscript')]"
@@ -676,8 +711,9 @@
       },
       {
          "type": "Microsoft.Resources/deployments",
-         "apiVersion": "${azure.apiVersion}",
+         "apiVersion": "${azure.apiVersionForDeployment}",
          "name": "${from.owls-141100-jdk11-ol87}",
+         "tags": "[parameters('tagsByResource')['${identifier.resourcesDeployment}']]",
          "condition": "[if(contains(variables('name_linuxImageOfferSKU'), 'owls-141100-jdk11-ol87'), bool('true'), bool('false'))]",
          "dependsOn": [
             "[resourceId('Microsoft.Compute/virtualMachines/extensions', parameters('adminVMName'), 'newuserscript')]"
@@ -694,8 +730,9 @@
       },	
       {
          "type": "Microsoft.Resources/deployments",
-         "apiVersion": "${azure.apiVersion}",
+         "apiVersion": "${azure.apiVersionForDeployment}",
          "name": "${from.owls-141100-jdk8-ol91}",
+         "tags": "[parameters('tagsByResource')['${identifier.resourcesDeployment}']]",
          "condition": "[if(contains(variables('name_linuxImageOfferSKU'), 'owls-141100-jdk8-ol91'), bool('true'), bool('false'))]",
          "dependsOn": [
             "[resourceId('Microsoft.Compute/virtualMachines/extensions', parameters('adminVMName'), 'newuserscript')]"
@@ -712,8 +749,9 @@
       },
       {
          "type": "Microsoft.Resources/deployments",
-         "apiVersion": "${azure.apiVersion}",
+         "apiVersion": "${azure.apiVersionForDeployment}",
          "name": "${from.owls-141100-jdk8-ol87}",
+         "tags": "[parameters('tagsByResource')['${identifier.resourcesDeployment}']]",
          "condition": "[if(contains(variables('name_linuxImageOfferSKU'), 'owls-141100-jdk8-ol87'), bool('true'), bool('false'))]",
          "dependsOn": [
             "[resourceId('Microsoft.Compute/virtualMachines/extensions', parameters('adminVMName'), 'newuserscript')]"
@@ -730,8 +768,9 @@
       },
       {
          "type": "Microsoft.Resources/deployments",
-         "apiVersion": "${azure.apiVersion}",
+         "apiVersion": "${azure.apiVersionForDeployment}",
          "name": "${from.owls-122140-jdk8-ol91}",
+         "tags": "[parameters('tagsByResource')['${identifier.resourcesDeployment}']]",
          "condition": "[if(contains(variables('name_linuxImageOfferSKU'), 'owls-122140-jdk8-ol91'), bool('true'), bool('false'))]",
          "dependsOn": [
             "[resourceId('Microsoft.Compute/virtualMachines/extensions', parameters('adminVMName'), 'newuserscript')]"
@@ -748,8 +787,9 @@
       },
       {
          "type": "Microsoft.Resources/deployments",
-         "apiVersion": "${azure.apiVersion}",
+         "apiVersion": "${azure.apiVersionForDeployment}",
          "name": "${from.owls-122140-jdk8-ol87}",
+         "tags": "[parameters('tagsByResource')['${identifier.resourcesDeployment}']]",
          "condition": "[if(contains(variables('name_linuxImageOfferSKU'), 'owls-122140-jdk8-ol87'), bool('true'), bool('false'))]",
          "dependsOn": [
             "[resourceId('Microsoft.Compute/virtualMachines/extensions', parameters('adminVMName'), 'newuserscript')]"
@@ -766,8 +806,9 @@
       },      
       {
          "type": "Microsoft.Resources/deployments",
-         "apiVersion": "${azure.apiVersion}",
+         "apiVersion": "${azure.apiVersionForDeployment}",
          "name": "${from.owls-122140-jdk8-ol76}",
+         "tags": "[parameters('tagsByResource')['${identifier.resourcesDeployment}']]",
          "condition": "[if(contains(variables('name_linuxImageOfferSKU'), 'from.owls-122140-jdk8-ol76'), bool('true'), bool('false'))]",
          "dependsOn": [
             "[resourceId('Microsoft.Compute/virtualMachines/extensions', parameters('adminVMName'), 'newuserscript')]"
@@ -784,8 +825,9 @@
       },
       {
          "type": "Microsoft.Resources/deployments",
-         "apiVersion": "${azure.apiVersion}",
+         "apiVersion": "${azure.apiVersionForDeployment}",
          "name": "${from.owls-141100-jdk8-ol76}",
+         "tags": "[parameters('tagsByResource')['${identifier.resourcesDeployment}']]",
          "condition": "[if(contains(variables('name_linuxImageOfferSKU'), 'owls-141100-jdk8-ol76'), bool('true'), bool('false'))]",
          "dependsOn": [
             "[resourceId('Microsoft.Compute/virtualMachines/extensions', parameters('adminVMName'), 'newuserscript')]"
@@ -802,8 +844,9 @@
       },
       {
          "type": "Microsoft.Resources/deployments",
-         "apiVersion": "${azure.apiVersion}",
+         "apiVersion": "${azure.apiVersionForDeployment}",
          "name": "${from.owls-141100-jdk11-ol76}",
+         "tags": "[parameters('tagsByResource')['${identifier.resourcesDeployment}']]",
          "condition": "[if(contains(variables('name_linuxImageOfferSKU'), 'owls-141100-jdk11-ol76'), bool('true'), bool('false'))]",
          "dependsOn": [
             "[resourceId('Microsoft.Compute/virtualMachines/extensions', parameters('adminVMName'), 'newuserscript')]"
@@ -820,8 +863,66 @@
       },
       {
          "type": "Microsoft.Resources/deployments",
-         "apiVersion": "${azure.apiVersion}",
+         "apiVersion": "${azure.apiVersionForDeployment}",
+         "name": "${from.owls-141100-jdk11-rhel87}",
+         "tags": "[parameters('tagsByResource')['${identifier.resourcesDeployment}']]",
+         "condition": "[if(contains(variables('name_linuxImageOfferSKU'), 'owls-141100-jdk11-rhel87'), bool('true'), bool('false'))]",
+         "dependsOn": [
+            "[resourceId('Microsoft.Compute/virtualMachines/extensions', parameters('adminVMName'), 'newuserscript')]"
+         ],
+         "properties": {
+            "mode": "Incremental",
+            "template": {
+               "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+               "contentVersion": "1.0.0.0",
+               "resources": [
+               ]
+            }
+         }
+      },      
+      {
+         "type": "Microsoft.Resources/deployments",
+         "apiVersion": "${azure.apiVersionForDeployment}",
+         "name": "${from.owls-141100-jdk8-rhel87}",
+         "tags": "[parameters('tagsByResource')['${identifier.resourcesDeployment}']]",
+         "condition": "[if(contains(variables('name_linuxImageOfferSKU'), 'owls-141100-jdk8-rhel87'), bool('true'), bool('false'))]",
+         "dependsOn": [
+            "[resourceId('Microsoft.Compute/virtualMachines/extensions', parameters('adminVMName'), 'newuserscript')]"
+         ],
+         "properties": {
+            "mode": "Incremental",
+            "template": {
+               "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+               "contentVersion": "1.0.0.0",
+               "resources": [
+               ]
+            }
+         }
+      },
+      {
+         "type": "Microsoft.Resources/deployments",
+         "apiVersion": "${azure.apiVersionForDeployment}",
+         "name": "${from.owls-122140-jdk8-rhel87}",
+         "tags": "[parameters('tagsByResource')['${identifier.resourcesDeployment}']]",
+         "condition": "[if(contains(variables('name_linuxImageOfferSKU'), 'owls-122140-jdk8-rhel87'), bool('true'), bool('false'))]",
+         "dependsOn": [
+            "[resourceId('Microsoft.Compute/virtualMachines/extensions', parameters('adminVMName'), 'newuserscript')]"
+         ],
+         "properties": {
+            "mode": "Incremental",
+            "template": {
+               "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+               "contentVersion": "1.0.0.0",
+               "resources": [
+               ]
+            }
+         }
+      },            
+      {
+         "type": "Microsoft.Resources/deployments",
+         "apiVersion": "${azure.apiVersionForDeployment}",
          "name": "${from.owls-122140-jdk8-rhel76}",
+         "tags": "[parameters('tagsByResource')['${identifier.resourcesDeployment}']]",
          "condition": "[if(contains(variables('name_linuxImageOfferSKU'), 'owls-122140-jdk8-rhel76'), bool('true'), bool('false'))]",
          "dependsOn": [
             "[resourceId('Microsoft.Compute/virtualMachines/extensions', parameters('adminVMName'), 'newuserscript')]"
@@ -838,8 +939,9 @@
       },
       {
          "type": "Microsoft.Resources/deployments",
-         "apiVersion": "${azure.apiVersion}",
+         "apiVersion": "${azure.apiVersionForDeployment}",
          "name": "${from.owls-141100-jdk8-rhel76}",
+         "tags": "[parameters('tagsByResource')['${identifier.resourcesDeployment}']]",
          "condition": "[if(contains(variables('name_linuxImageOfferSKU'), 'owls-141100-jdk8-rhel76'), bool('true'), bool('false'))]",
          "dependsOn": [
             "[resourceId('Microsoft.Compute/virtualMachines/extensions', parameters('adminVMName'), 'newuserscript')]"
@@ -856,8 +958,9 @@
       },
       {
          "type": "Microsoft.Resources/deployments",
-         "apiVersion": "${azure.apiVersion}",
+         "apiVersion": "${azure.apiVersionForDeployment}",
          "name": "${from.owls-141100-jdk11-rhel76}",
+         "tags": "[parameters('tagsByResource')['${identifier.resourcesDeployment}']]",
          "condition": "[if(contains(variables('name_linuxImageOfferSKU'), 'owls-141100-jdk11-rhel76'), bool('true'), bool('false'))]",
          "dependsOn": [
             "[resourceId('Microsoft.Compute/virtualMachines/extensions', parameters('adminVMName'), 'newuserscript')]"

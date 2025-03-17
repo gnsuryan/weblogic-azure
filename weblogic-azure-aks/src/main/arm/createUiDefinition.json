@@ -3,6 +3,13 @@
     "handler": "Microsoft.Azure.CreateUIDef",
     "version": "0.1.2-preview",
     "parameters": {
+        "config": {
+            "basics": {
+                "resourceGroup": {
+                    "allowExisting": true
+                }
+            }
+        },
         "basics": [
             {
                 "name": "infoForBeforeDeployment",
@@ -18,6 +25,14 @@
                 "type": "Microsoft.Common.Section",
                 "label": "Credentials for WebLogic",
                 "elements": [
+                    {
+                        "name": "listVMSizes",
+                        "type": "Microsoft.Solutions.ArmApiControl",
+                        "request": {
+                            "method": "GET",
+                            "path": "[concat(subscription().id, '/providers/Microsoft.Compute/locations/',location(),'/vmSizes?api-version=2024-03-01')]"
+                        }
+                    },
                     {
                         "name": "wlsUserName",
                         "type": "Microsoft.Common.TextBox",
@@ -286,6 +301,14 @@
                                 }
                             },
                             {
+                                "name": "infoBoxAks",
+                                "type": "Microsoft.Common.InfoBox",
+                                "visible": "[not(bool(steps('section_aks').clusterInfo.createAKSCluster))]",
+                                "options": {
+                                    "text": "Ensure that the AKS cluster is configured with the following networking settings:<br><li>Container networking: Azure CNI Node Subnet</li><li>Network policy: Azure</li>"
+                                }
+                            },
+                            {
                                 "name": "aksClusterSelector",
                                 "type": "Microsoft.Solutions.ResourceSelector",
                                 "label": "Select AKS cluster",
@@ -313,20 +336,6 @@
                                 }
                             },
                             {
-                                "name": "aksNodeCount",
-                                "type": "Microsoft.Common.Slider",
-                                "min": 1,
-                                "max": 1000,
-                                "label": "Node count",
-                                "defaultValue": 3,
-                                "showStepMarkers": false,
-                                "toolTip": "The number of nodes that should be created along with the cluster. You will be able to resize the cluster later.",
-                                "constraints": {
-                                    "required": true
-                                },
-                                "visible": "[bool(steps('section_aks').clusterInfo.createAKSCluster)]"
-                            },
-                            {
                                 "name": "nodeVMSizeSelector",
                                 "type": "Microsoft.Compute.SizeSelector",
                                 "label": "Node size",
@@ -335,14 +344,89 @@
                                     "Standard_DS2_v2"
                                 ],
                                 "constraints": {
-                                    "numAvailabilityZonesRequired": 3,
-                                    "zone": "3"
+                                    "excludedSizes": [
+                                        "Standard_A0",
+                                        "Standard_A1",
+                                        "Standard_A1_v2",
+                                        "Standard_F1",
+                                        "Standard_F1s",
+                                        "Standard_DS1_v2",
+                                        "Standard_B12ms",
+                                        "Standard_B16als_v2",
+                                        "Standard_B16as_v2",
+                                        "Standard_B16ls_v2",
+                                        "Standard_B16ms",
+                                        "Standard_B16pls_v2",
+                                        "Standard_B16ps_v2",
+                                        "Standard_B16s_v2",
+                                        "Standard_B1ls",
+                                        "Standard_B1ms",
+                                        "Standard_B1s",
+                                        "Standard_B20ms",
+                                        "Standard_B2als_v2",
+                                        "Standard_B2as_v2",
+                                        "Standard_B2ats_v2",
+                                        "Standard_B2ls_v2",
+                                        "Standard_B2ms",
+                                        "Standard_B2pls_v2",
+                                        "Standard_B2ps_v2",
+                                        "Standard_B2pts_v2",
+                                        "Standard_B2s",
+                                        "Standard_B2s_v2",
+                                        "Standard_B2ts_v2",
+                                        "Standard_B32als_v2",
+                                        "Standard_B32as_v2",
+                                        "Standard_B32ls_v2",
+                                        "Standard_B32s_v2",
+                                        "Standard_B4als_v2",
+                                        "Standard_B4as_v2",
+                                        "Standard_B4ls_v2",
+                                        "Standard_B4ms",
+                                        "Standard_B4pls_v2",
+                                        "Standard_B4ps_v2",
+                                        "Standard_B4s_v2",
+                                        "Standard_B8als_v2",
+                                        "Standard_B8as_v2",
+                                        "Standard_B8ls_v2",
+                                        "Standard_B8ms",
+                                        "Standard_B8pls_v2",
+                                        "Standard_B8ps_v2",
+                                        "Standard_B8s_v2"
+                                    ]
                                 },
                                 "options": {
                                     "hideDiskTypeFilter": false
                                 },
                                 "osPlatform": "Linux",
                                 "count": "[steps('section_aks').clusterInfo.aksNodeCount]",
+                                "visible": "[bool(steps('section_aks').clusterInfo.createAKSCluster)]"
+                            },
+                            {
+                                "name": "aksNodeCount",
+                                "type": "Microsoft.Common.Slider",
+                                "min": "[add(1, div(add(12288, mul(if(bool(basics('basicsOptional').basicsOptionalAcceptDefaults), basics('basicsOptional').wlsClusterSize, 5), 1536)), first(filter(basics('basicsRequired').listVMSizes.value, (item) => equals(item.name, steps('section_aks').clusterInfo.nodeVMSizeSelector))).memoryInMB))]",
+                                "defaultValue": 3,
+                                "max": 998,
+                                "label": "Minimum node count",
+                                "showStepMarkers": false,
+                                "toolTip": "Set the minimum node count for the cluster.",
+                                "constraints": {
+                                    "required": true
+                                },
+                                "visible": "[bool(steps('section_aks').clusterInfo.createAKSCluster)]"
+                            },
+                            {
+                                "name": "aksNodeMaxCount",
+                                "type": "Microsoft.Common.Slider",
+                                "min": "[add(steps('section_aks').clusterInfo.aksNodeCount,2)]",
+                                "defaultValue": 3,
+                                "max": 1000,
+                                "label": "Maximum node count",
+                                "showStepMarkers": false,
+                                "toolTip": "Set the maximum node count for the cluster.",
+                                "constraints": {
+                                    "required": true
+                                },
                                 "visible": "[bool(steps('section_aks').clusterInfo.createAKSCluster)]"
                             }
                         ]
@@ -532,6 +616,15 @@
                                             "message": "Must be a valid Docker tag for WebLogic on Oracle Container Registry"
                                         }
                                     ]
+                                }
+                            },
+                            {
+                                "name": "unsupportedPlatformInfo1",
+                                "type": "Microsoft.Common.InfoBox",
+                                "visible": "[and(contains(steps('section_aks').clusterInfo.nodeVMSizeSelector,'p'), not(contains(parse('[\"14.1.1.0-11\", \"14.1.1.0-8\", \"14.1.1.0-slim-11\", \"14.1.1.0-slim-8\", \"12.2.1.4\", \"12.2.1.4-slim\"]'),if(equals(steps('section_aks').imageInfo.oracleImageSelector, 'others'), steps('section_aks').imageInfo.fromOracleImage, steps('section_aks').imageInfo.oracleImageSelector))))]",
+                                "options": {
+                                    "icon": "Error",
+                                    "text": "The selected image is not compatible with the ARM64 platform. Please choose a different image or select a different size from <b>AKS</b> -> <b>Azure Kubernetes Service</b> -> <b>Node size</b>. For more information, see <a href=https://learn.microsoft.com/azure/virtual-machines/vm-naming-conventions>the Azure documentation</a>."
                                 }
                             }
                         ],
@@ -768,60 +861,11 @@
                             ],
                             "required": false
                         }
-                    },
-                    {
-                        "name": "sslText00",
-                        "type": "Microsoft.Common.TextBlock",
-                        "visible": "[steps('section_sslConfiguration').enableCustomSSL]",
-                        "options": {
-                            "text": "Choose an option for providing the TLS/SSL KeyStore and enter the values for the required fields:"
-                        }
-                    },
-                    {
-                        "name": "sslText01",
-                        "type": "Microsoft.Common.TextBlock",
-                        "visible": "[steps('section_sslConfiguration').enableCustomSSL]",
-                        "options": {
-                            "text": "    ⁃ Upload existing KeyStores."
-                        }
-                    },
-                    {
-                        "name": "sslText02",
-                        "type": "Microsoft.Common.TextBlock",
-                        "visible": "[steps('section_sslConfiguration').enableCustomSSL]",
-                        "options": {
-                            "text": "    ⁃ Use KeyStores stored in Azure Key Vault.",
-                            "link": {
-                                "label": "Learn more",
-                                "uri": "https://aka.ms/wls-aks-tls-ssl"
-                            }
-                        }
-                    },
-                    {
-                        "name": "sslConfigurationAccessOption",
-                        "type": "Microsoft.Common.OptionsGroup",
-                        "visible": "[steps('section_sslConfiguration').enableCustomSSL]",
-                        "label": "How would you like to provide required configuration",
-                        "defaultValue": "Upload existing KeyStores",
-                        "toolTip": "Select 'Upload existing KeyStores' to use local stored KeyStores.",
-                        "constraints": {
-                            "allowedValues": [
-                                {
-                                    "label": "Upload existing KeyStores",
-                                    "value": "uploadConfig"
-                                },
-                                {
-                                    "label": "Use KeyStores stored in Azure Key Vault",
-                                    "value": "keyVaultStoredConfig"
-                                }
-                            ],
-                            "required": false
-                        }
-                    },
+                    },                    
                     {
                         "name": "uploadedCustomSSLSettings",
                         "type": "Microsoft.Common.Section",
-                        "visible": "[and(steps('section_sslConfiguration').enableCustomSSL, equals(steps('section_sslConfiguration').sslConfigurationAccessOption, 'uploadConfig'))]",
+                        "visible": "[steps('section_sslConfiguration').enableCustomSSL]",
                         "label": "TLS/SSL configuration settings",
                         "elements": [
                             {
@@ -976,182 +1020,6 @@
                                 }
                             }
                         ]
-                    },
-                    {
-                        "name": "keyVaultStoredCustomSSLSettings",
-                        "type": "Microsoft.Common.Section",
-                        "visible": "[and(steps('section_sslConfiguration').enableCustomSSL, equals(steps('section_sslConfiguration').sslConfigurationAccessOption, 'keyVaultStoredConfig'))]",
-                        "label": "TLS/SSL configuration settings",
-                        "elements": [
-                            {
-                                "name": "sslKeystoreInfo1",
-                                "type": "Microsoft.Common.InfoBox",
-                                "visible": "true",
-                                "options": {
-                                    "icon": "Info",
-                                    "text": "You must provide different files for identity and trust KeyStores. Select here for more details.",
-                                    "uri": "https://aka.ms/arm-oraclelinux-wls-ssl-configuration"
-                                }
-                            },
-                            {
-                                "name": "keyVaultText",
-                                "type": "Microsoft.Common.TextBlock",
-                                "visible": "true",
-                                "options": {
-                                    "text": "Enabling a HTTPS (Secure) port for the Administration Console requires you to obtain a valid TLS/SSL certificate. The offer will look for the certificate and other configuration items in the Azure Key Vault specified here.",
-                                    "link": {
-                                        "label": "Learn more",
-                                        "uri": "https://aka.ms/wls-aks-ssl-key-vault"
-                                    }
-                                }
-                            },
-                            {
-                                "name": "keyVaultResourceGroup",
-                                "type": "Microsoft.Common.TextBox",
-                                "visible": "true",
-                                "label": "Resource group name in current subscription containing the Key Vault",
-                                "defaultValue": "",
-                                "toolTip": "Use only letters and numbers",
-                                "constraints": {
-                                    "required": true,
-                                    "regex": "^[a-z0-9A-Z.\\-_()]{0,89}([a-z0-9A-Z\\-_()]{1}){3,63}$",
-                                    "validationMessage": "[if(greater(length(steps('section_sslConfiguration').keyVaultStoredCustomSSLSettings.keyVaultResourceGroup), 90),'Resource group names only allow up to 90 characters.', 'Resource group names only allow alphanumeric characters, periods, underscores, hyphens and parenthesis and cannot end in a period.')]"
-                                }
-                            },
-                            {
-                                "name": "keyVaultName",
-                                "type": "Microsoft.Common.TextBox",
-                                "visible": "true",
-                                "label": "Name of the Azure Key Vault containing secrets for the TLS/SSL certificate",
-                                "defaultValue": "",
-                                "toolTip": "Use only letters and numbers",
-                                "constraints": {
-                                    "required": true,
-                                    "regex": "^(?=.{3,24}$)[a-zA-Z](?!.*--)[a-zA-Z0-9-]*[a-zA-Z0-9]$",
-                                    "validationMessage": "[if(or(greater(length(steps('section_sslConfiguration').keyVaultStoredCustomSSLSettings.keyVaultName), 24), less(length(steps('section_sslConfiguration').keyVaultStoredCustomSSLSettings.keyVaultName), 3)),'Vault name must be between 3-24 alphanumeric characters. The name must begin with a letter, end with a letter or digit, and not contain consecutive hyphens.','Vault name must only contain alphanumeric characters and dashes and cannot start with a number')]"
-                                }
-                            },
-                            {
-                                "name": "keyVaultCustomIdentityKeyStoreDataSecretName",
-                                "type": "Microsoft.Common.TextBox",
-                                "visible": "true",
-                                "label": "The name of the secret in the specified Key Vault whose value is the Identity KeyStore Data",
-                                "defaultValue": "",
-                                "toolTip": "Use only letters and numbers",
-                                "constraints": {
-                                    "required": true,
-                                    "regex": "^[a-z0-9A-Z]{1,30}$",
-                                    "validationMessage": "The value must be 1-30 characters long and must only contain letters and numbers."
-                                }
-                            },
-                            {
-                                "name": "keyVaultCustomIdentityKeyStorePassPhraseSecretName",
-                                "type": "Microsoft.Common.TextBox",
-                                "visible": "true",
-                                "label": "The name of the secret in the specified Key Vault whose value is the passphrase for the Identity KeyStore",
-                                "defaultValue": "",
-                                "toolTip": "Use only letters and numbers",
-                                "constraints": {
-                                    "required": true,
-                                    "regex": "^[a-z0-9A-Z]{1,30}$",
-                                    "validationMessage": "The value must be 1-30 characters long and must only contain letters and numbers."
-                                }
-                            },
-                            {
-                                "name": "keyVaultCustomIdentityKeyStoreType",
-                                "type": "Microsoft.Common.DropDown",
-                                "visible": "true",
-                                "label": "The Identity KeyStore type (JKS,PKCS12)",
-                                "defaultValue": "JKS",
-                                "toolTip": "One of the supported KeyStore types",
-                                "constraints": {
-                                    "allowedValues": [
-                                        {
-                                            "label": "JKS",
-                                            "value": "JKS"
-                                        },
-                                        {
-                                            "label": "PKCS12",
-                                            "value": "PKCS12"
-                                        }
-                                    ],
-                                    "required": true
-                                }
-                            },
-                            {
-                                "name": "keyVaultPrivateKeyAliasSecretName",
-                                "type": "Microsoft.Common.TextBox",
-                                "visible": "true",
-                                "label": "The name of the secret in the specified Key Vault whose value is the Private Key Alias",
-                                "defaultValue": "",
-                                "toolTip": "Use only letters and numbers",
-                                "constraints": {
-                                    "required": true,
-                                    "regex": "^[a-z0-9A-Z]{1,30}$",
-                                    "validationMessage": "The value must be 1-30 characters long and must only contain letters and numbers."
-                                }
-                            },
-                            {
-                                "name": "keyVaultPrivateKeyPassPhraseSecretName",
-                                "type": "Microsoft.Common.TextBox",
-                                "visible": "true",
-                                "label": "The name of the secret in the specified Key Vault whose value is the passphrase for the Private Key",
-                                "defaultValue": "",
-                                "toolTip": "Use only letters and numbers",
-                                "constraints": {
-                                    "required": true,
-                                    "regex": "^[a-z0-9A-Z]{1,30}$",
-                                    "validationMessage": "The value must be 1-30 characters long and must only contain letters and numbers."
-                                }
-                            },
-                            {
-                                "name": "keyVaultCustomTrustKeyStoreDataSecretName",
-                                "type": "Microsoft.Common.TextBox",
-                                "visible": "true",
-                                "label": "The name of the secret in the specified Key Vault whose value is the Trust KeyStore Data",
-                                "defaultValue": "",
-                                "toolTip": "Use only letters and numbers",
-                                "constraints": {
-                                    "required": true,
-                                    "regex": "^[a-z0-9A-Z]{1,30}$",
-                                    "validationMessage": "The value must be 1-30 characters long and must only contain letters and numbers."
-                                }
-                            },
-                            {
-                                "name": "keyVaultCustomTrustKeyStorePassPhraseSecretName",
-                                "type": "Microsoft.Common.TextBox",
-                                "visible": "true",
-                                "label": "The name of the secret in the specified Key Vault whose value is the passphrase for the Trust KeyStore",
-                                "defaultValue": "",
-                                "toolTip": "Use only letters and numbers",
-                                "constraints": {
-                                    "required": true,
-                                    "regex": "^[a-z0-9A-Z]{1,30}$",
-                                    "validationMessage": "The value must be 1-30 characters long and must only contain letters and numbers."
-                                }
-                            },
-                            {
-                                "name": "keyVaultCustomTrustKeyStoreType",
-                                "type": "Microsoft.Common.DropDown",
-                                "visible": "true",
-                                "label": "The Trust KeyStore type (JKS,PKCS12)",
-                                "defaultValue": "JKS",
-                                "toolTip": "One of the supported KeyStore types",
-                                "constraints": {
-                                    "allowedValues": [
-                                        {
-                                            "label": "JKS",
-                                            "value": "JKS"
-                                        },
-                                        {
-                                            "label": "PKCS12",
-                                            "value": "PKCS12"
-                                        }
-                                    ],
-                                    "required": true
-                                }
-                            }
-                        ]
                     }
                 ]
             },
@@ -1269,7 +1137,7 @@
                                 "visible": false
                             },
                             {
-                                "name": "keyVaultText00",
+                                "name": "sslCertText00",
                                 "type": "Microsoft.Common.TextBlock",
                                 "visible": true,
                                 "options": {
@@ -1277,7 +1145,7 @@
                                 }
                             },
                             {
-                                "name": "keyVaultText01",
+                                "name": "sslCertText01",
                                 "type": "Microsoft.Common.TextBlock",
                                 "visible": true,
                                 "options": {
@@ -1285,15 +1153,7 @@
                                 }
                             },
                             {
-                                "name": "keyVaultText02",
-                                "type": "Microsoft.Common.TextBlock",
-                                "visible": true,
-                                "options": {
-                                    "text": "    ⁃ Identify an Azure Key Vault: The Key Vault must already contain the certificate and its password stored as secrets."
-                                }
-                            },
-                            {
-                                "name": "keyVaultText03",
+                                "name": "sslCertText02",
                                 "type": "Microsoft.Common.TextBlock",
                                 "visible": true,
                                 "options": {
@@ -1319,10 +1179,6 @@
                                         {
                                             "label": "Upload a TLS/SSL certificate",
                                             "value": "haveCert"
-                                        },
-                                        {
-                                            "label": "Identify an Azure Key Vault",
-                                            "value": "haveKeyVault"
                                         }
                                     ],
                                     "required": true
@@ -1330,7 +1186,7 @@
                                 "visible": true
                             },
                             {
-                                "name": "keyVaultSSLCertData",
+                                "name": "appGatewaySSLCertData",
                                 "type": "Microsoft.Common.FileUpload",
                                 "label": "Front-End TLS/SSL certificate(.pfx)",
                                 "toolTip": "TLS/SSL certificate used for App Gateway",
@@ -1364,7 +1220,7 @@
                                 "visible": "[equals(steps('section_appGateway').appgwIngress.certificateOption, 'haveCert')]"
                             },
                             {
-                                "name": "keyVaultBackendSSLCertData",
+                                "name": "uploadedSSLCertData",
                                 "type": "Microsoft.Common.FileUpload",
                                 "label": "Trusted root certificate(.cer, .cert)",
                                 "toolTip": "Trusted root certificate (CA certificate) used to set up end to end TLS/SSL",
@@ -1377,72 +1233,7 @@
                                     "uploadMode": "file",
                                     "openMode": "binary"
                                 },
-                                "visible": "[and(steps('section_sslConfiguration').enableCustomSSL, not(equals(steps('section_appGateway').appgwIngress.certificateOption, 'haveKeyVault')))]"
-                            },
-                            {
-                                "name": "keyVaultResourceGroup",
-                                "type": "Microsoft.Common.TextBox",
-                                "label": "Resource group name in current subscription containing the Key Vault",
-                                "defaultValue": "",
-                                "toolTip": "Use only letters and numbers",
-                                "constraints": {
-                                    "required": true,
-                                    "regex": "^[a-z0-9A-Z.\\-_()]{0,89}([a-z0-9A-Z\\-_()]{1}){3,63}$",
-                                    "validationMessage": "[if(greater(length(steps('section_appGateway').appgwIngress.keyVaultResourceGroup), 90),'Resource group names only allow up to 90 characters.', 'Resource group names only allow alphanumeric characters, periods, underscores, hyphens and parenthesis and cannot end in a period.')]"
-                                },
-                                "visible": "[equals(steps('section_appGateway').appgwIngress.certificateOption, 'haveKeyVault')]"
-                            },
-                            {
-                                "name": "keyVaultName",
-                                "type": "Microsoft.Common.TextBox",
-                                "label": "Name of the Azure Key Vault containing secrets for the certificate for TLS/SSL Termination",
-                                "defaultValue": "",
-                                "toolTip": "Use only letters and numbers",
-                                "constraints": {
-                                    "required": true,
-                                    "regex": "^(?=.{3,24}$)[a-zA-Z](?!.*--)[a-zA-Z0-9-]*[a-zA-Z0-9]$",
-                                    "validationMessage": "[if(or(greater(length(steps('section_appGateway').appgwIngress.keyVaultName), 24), less(length(steps('section_appGateway').appgwIngress.keyVaultName), 3)),'Vault name must be between 3-24 alphanumeric characters. The name must begin with a letter, end with a letter or digit, and not contain consecutive hyphens.','Vault name must only contain alphanumeric characters and dashes and cannot start with a number')]"
-                                },
-                                "visible": "[equals(steps('section_appGateway').appgwIngress.certificateOption, 'haveKeyVault')]"
-                            },
-                            {
-                                "name": "keyVaultSSLCertDataSecretName",
-                                "type": "Microsoft.Common.TextBox",
-                                "label": "The name of the secret in the specified Key Vault whose value is the front-end TLS/SSL certificate data",
-                                "defaultValue": "",
-                                "toolTip": "Use only letters and numbers",
-                                "constraints": {
-                                    "required": true,
-                                    "regex": "^[a-z0-9A-Z]{1,30}$",
-                                    "validationMessage": "The value must be 1-30 characters long and must only contain letters and numbers."
-                                },
-                                "visible": "[equals(steps('section_appGateway').appgwIngress.certificateOption, 'haveKeyVault')]"
-                            },
-                            {
-                                "name": "keyVaultSSLCertPasswordSecretName",
-                                "type": "Microsoft.Common.TextBox",
-                                "label": "The name of the secret in the specified Key Vault whose value is the password for the front-end TLS/SSL certificate",
-                                "defaultValue": "",
-                                "toolTip": "Use only letters and numbers",
-                                "constraints": {
-                                    "required": true,
-                                    "regex": "^[a-z0-9A-Z]{1,30}$",
-                                    "validationMessage": "The value must be 1-30 characters long and must only contain letters and numbers."
-                                },
-                                "visible": "[equals(steps('section_appGateway').appgwIngress.certificateOption, 'haveKeyVault')]"
-                            },
-                            {
-                                "name": "keyVaultBackendSSLCertDataSecretName",
-                                "type": "Microsoft.Common.TextBox",
-                                "label": "The name of the secret in the specified Key Vault whose value is the trusted root certificate data",
-                                "defaultValue": "",
-                                "toolTip": "Use only letters and numbers",
-                                "constraints": {
-                                    "required": true,
-                                    "regex": "^[a-z0-9A-Z]{1,30}$",
-                                    "validationMessage": "The value must be 1-30 characters long and must only contain letters and numbers."
-                                },
-                                "visible": "[and(steps('section_sslConfiguration').enableCustomSSL, equals(steps('section_appGateway').appgwIngress.certificateOption, 'haveKeyVault'))]"
+                                "visible": "[steps('section_sslConfiguration').enableCustomSSL]"
                             },
                             {
                                 "name": "enableCookieBasedAffinity",
@@ -2010,7 +1801,8 @@
                                         }
                                     ]
                                 },
-                                "visible": "[and(bool(steps('section_database').enableDB), not(and(steps('section_database').databaseConnectionInfo.enablePswlessConnection0, equals(steps('section_database').databaseConnectionInfo.databaseType, 'sqlserver'))))]"                            },
+                                "visible": "[and(bool(steps('section_database').enableDB), not(and(steps('section_database').databaseConnectionInfo.enablePswlessConnection0, equals(steps('section_database').databaseConnectionInfo.databaseType, 'sqlserver'))))]"
+                            },
                             {
                                 "name": "enablePswlessConnection",
                                 "type": "Microsoft.Common.CheckBox",
@@ -2107,22 +1899,195 @@
                         "visible": "[bool(steps('section_database').enableDB)]"
                     }
                 ]
+            },
+            {
+                "name": "section_autoScaling",
+                "type": "Microsoft.Common.Section",
+                "label": "Autoscaling",
+                "subLabel": {
+                    "preValidation": "Configure Horizontal Autoscaling",
+                    "postValidation": "Done"
+                },
+                "bladeTitle": "Horizontal Autoscaling",
+                "elements": [
+                    {
+                        "name": "aboutAutoscaling",
+                        "type": "Microsoft.Common.TextBlock",
+                        "visible": true,
+                        "options": {
+                            "text": "Selecting 'Yes' here and providing the configuration will cause the offer configure metric to scale the WebLogic cluster."
+                        }
+                    },
+                    {
+                        "name": "enableAutoscaling",
+                        "type": "Microsoft.Common.OptionsGroup",
+                        "label": "Provision resources for horizontal autoscaling?",
+                        "defaultValue": "No",
+                        "toolTip": "Select 'Yes' and provide required info to configure horizontal autoscaling.",
+                        "constraints": {
+                            "allowedValues": [
+                                {
+                                    "label": "Yes",
+                                    "value": "true"
+                                },
+                                {
+                                    "label": "No",
+                                    "value": "false"
+                                }
+                            ],
+                            "required": true
+                        }
+                    },
+                    {
+                        "name": "autoScalingInfo",
+                        "type": "Microsoft.Common.Section",
+                        "label": "Horizontal autoscaling settings",
+                        "elements": [
+                            {
+                                "name": "metricSource",
+                                "type": "Microsoft.Common.OptionsGroup",
+                                "label": "Select autoscaling option. ",
+                                "defaultValue": "Kubernetes Metrics Server (simple autoscaling)",
+                                "toolTip": "If you select Kubernetes Metrics Server, this offer configures WebLogic Server to scale based on CPU or memory utilization. If you select WebLogic Monitoring Exporter, this offer configures WebLogic Monitoring Exporter to scrape WebLogic Server metrics and feed them to Azure Monitor Managed Service for Prometheus; integrates KEDA with your AKS cluster to monitor Azure Monitor workspace and feed data to AKS. You can create KEDA scaler based on Java metrics from Azure Monitor workspace",
+                                "constraints": {
+                                    "allowedValues": [
+                                        {
+                                            "label": "Kubernetes Metrics Server (simple autoscaling)",
+                                            "value": "kms"
+                                        },
+                                        {
+                                            "label": "WebLogic Monitoring Exporter (advanced autoscaling)",
+                                            "value": "wme"
+                                        }
+                                    ],
+                                    "required": true
+                                },
+                                "visible": true
+                            },
+                            {
+                                "name": "infoKms",
+                                "type": "Microsoft.Common.InfoBox",
+                                "visible": "[equals(steps('section_autoScaling').autoScalingInfo.metricSource, 'kms')]",
+                                "options": {
+                                    "icon": "None",
+                                    "text": "This option configures and runs Kubernetes Horizontal Pod Autoscaler (HPA) to scale a WebLogic cluster, based on the CPU or memory utilization. The HPA autoscales WebLogic Server instances from a minimum of 1 cluster members up to maximum of cluster members, and the scale up or down action occur when the average CPU/memory is consistently over the utilization.<br><li>Default maximum of cluster member is 5. You can set it from <b>Basics</b> -> <b>Optional Basic Configuration</b> -> <b>Maximum dynamic cluster size</b>.</li><li>Default CPU request is 200m.</li><li>Default memory request is 1.5Gi.</li>",
+                                    "uri": "https://aka.ms/wlsoperator-autoscaling-hpa"
+                                }
+                            },
+                            {
+                                "name": "infoWme",
+                                "type": "Microsoft.Common.InfoBox",
+                                "visible": "[equals(steps('section_autoScaling').autoScalingInfo.metricSource, 'wme')]",
+                                "options": {
+                                    "icon": "None",
+                                    "text": "This option installs all the software necessary to allow you to create Java metric aware KEDA scaling rules.<br>The offer provisions the following deployments. Right-click and select <b>Open Link in New Tab</b> to follow links:<ul><li><a href=https://aka.ms/wls-exporter>Install WebLogic Monitoring Exporter to scrape WebLogic Server metrics.</a><li><a href=https://aka.ms/aks-enable-monitoring>Install AKS Prometheus metrics addon.</a><li><a href=https://aka.ms/aks-prometheus-metrics-scrape-configuration>Feed WebLogic Server metrics to Azure Monitor Managed Service for Prometheus.</a><li><a href=https://aka.ms/aks-integrate-keda>Integrate KEDA with AKS cluster.</a></ul>After the provisioning is completed, you can create KEDA scaling rules. A sample rule is provided in the deployment outputs. The following steps show how to see the sample rule.<ul><li>View the resource group for this deployment in the Azure portal.<li>In the <b>Settings</b> section, select <b>Deployments</b>.<li>Select the oldest deployment. The name of the deployment looks similar to <b>oracle.20210620-wls-on-aks</b>.<li>Select <b>Outputs</b>.<li>The <b>shellCmdtoOutputKedaScalerSample</b> value is the base64 string of a scaler sample. Copy the value and run it in your terminal.<li>For guidance on how to complete the configuration, see <a href=https://aka.ms/wls-aks-keda-scaler>Tutorial: Migrate Oracle WebLogic Server to AKS with KEDA scaler based on Prometheus Metrics</a></ul>",
+                                    "uri": "https://aka.ms/wls-aks-keda-scaler"
+                                }
+                            },
+                            {
+                                "name": "kmsMetrics",
+                                "type": "Microsoft.Common.OptionsGroup",
+                                "label": "Select metric. ",
+                                "defaultValue": "Average CPU Utilization",
+                                "toolTip": "Select metric.",
+                                "constraints": {
+                                    "allowedValues": [
+                                        {
+                                            "label": "Average CPU Utilization",
+                                            "value": "cpu"
+                                        },
+                                        {
+                                            "label": "Average Memory Utilization",
+                                            "value": "memory"
+                                        }
+                                    ],
+                                    "required": true
+                                },
+                                "visible": "[equals(steps('section_autoScaling').autoScalingInfo.metricSource, 'kms')]"
+                            },
+                            {
+                                "name": "averageCpuUtilization",
+                                "type": "Microsoft.Common.Slider",
+                                "min": 10,
+                                "max": 100,
+                                "label": "Average CPU Utilization",
+                                "subLabel": "Percent",
+                                "defaultValue": 60,
+                                "showStepMarkers": false,
+                                "toolTip": "Pick Average CPU Utilization in Percent",
+                                "constraints": {
+                                    "required": false
+                                },
+                                "visible": "[equals(steps('section_autoScaling').autoScalingInfo.kmsMetrics, 'cpu')]"
+                            },
+                            {
+                                "name": "averageMemoryUtilization",
+                                "type": "Microsoft.Common.Slider",
+                                "min": 10,
+                                "max": 100,
+                                "label": "Average Memory Utilization",
+                                "subLabel": "Percent",
+                                "defaultValue": 60,
+                                "showStepMarkers": false,
+                                "toolTip": "Pick Average Memory Utilization in Percent",
+                                "constraints": {
+                                    "required": false
+                                },
+                                "visible": "[equals(steps('section_autoScaling').autoScalingInfo.kmsMetrics, 'memory')]"
+                            }
+                        ],
+                        "visible": "[bool(steps('section_autoScaling').enableAutoscaling)]"
+                    }
+                ]
+            },
+            {
+                "name": "tags",
+                "label": "Tags",
+                "elements": [
+                    {
+                        "name": "tagsByResource",
+                        "type": "Microsoft.Common.TagsByResource",
+                        "resources": [
+                            "${identifier.managedClusters}",
+                            "${identifier.applicationGateways}",
+                            "${identifier.registries}",
+                            "${identifier.virtualMachines}",
+                            "${identifier.virtualMachinesExtensions}",
+                            "${identifier.virtualNetworks}",
+                            "${identifier.networkInterfaces}",
+                            "${identifier.networkSecurityGroups}",
+                            "${identifier.publicIPAddresses}",
+                            "${identifier.storageAccounts}",
+                            "${identifier.vaults}",
+                            "${identifier.userAssignedIdentities}",
+                            "${identifier.dnszones}",
+                            "${identifier.workspaces}",
+                            "${identifier.accounts}",
+                            "${identifier.deploymentScripts}"
+                        ],
+                        "toolTip": "Tags help you organize your resources and categorize them for billing or management purposes. You can apply tags to resources deployed by the offer."
+                    }
+                ]
             }
         ],
         "outputs": {
             "acrName": "[last(split(steps('section_aks').imageInfo.oracleAcrSelector.id, '/'))]",
+            "acrResourceGroupName": "[last(take(split(steps('section_aks').imageInfo.oracleAcrSelector.id, '/'),5))]",
             "aksAgentPoolNodeCount": "[steps('section_aks').clusterInfo.aksNodeCount]",
+            "aksAgentPoolNodeMaxCount": "[steps('section_aks').clusterInfo.aksNodeMaxCount]",
             "aksClusterName": "[last(split(steps('section_aks').clusterInfo.aksClusterSelector.id, '/'))]",
             "aksClusterRGName": "[last(take(split(steps('section_aks').clusterInfo.aksClusterSelector.id, '/'), 5))]",
             "appGatewayCertificateOption": "[steps('section_appGateway').appgwIngress.certificateOption]",
-            "appGatewaySSLBackendRootCertData": "[steps('section_appGateway').appgwIngress.keyVaultBackendSSLCertData]",
-            "appGatewaySSLCertData": "[steps('section_appGateway').appgwIngress.keyVaultSSLCertData]",
+            "appGatewaySSLBackendRootCertData": "[steps('section_appGateway').appgwIngress.uploadedSSLCertData]",
+            "appGatewaySSLCertData": "[steps('section_appGateway').appgwIngress.appGatewaySSLCertData]",
             "appGatewaySSLCertPassword": "[steps('section_appGateway').appgwIngress.appGatewaySSLCertPassword]",
             "appgwForAdminServer": "[steps('section_appGateway').appgwIngress.appgwForAdminServer]",
             "appgwForRemoteConsole": "[steps('section_appGateway').appgwIngress.appgwForAdminRemote]",
             "appgwUsePrivateIP": "[steps('section_appGateway').appgwIngress.appgwUsePrivateIP]",
             "appPackageUrls": "[steps('section_aks').jeeAppInfo.appPackageUrl]",
             "appReplicas": "[int(steps('section_aks').jeeAppInfo.appReplicas)]",
+            "averageCpuUtilization": "[steps('section_autoScaling').autoScalingInfo.averageCpuUtilization]",
+            "averageMemoryUtilization": "[steps('section_autoScaling').autoScalingInfo.averageMemoryUtilization]",
             "createACR": "[bool(steps('section_aks').imageInfo.oracleCreateACR)]",
             "createAKSCluster": "[bool(steps('section_aks').clusterInfo.createAKSCluster)]",
             "createDNSZone": "[not(bool(steps('section_dnsConfiguration').bringDNSZone))]",
@@ -2142,6 +2107,7 @@
             "dnszoneRGName": "[steps('section_dnsConfiguration').dnsZoneResourceGroup]",
             "dsConnectionURL": "[coalesce(steps('section_database').databaseConnectionInfo.dsConnectionURL, steps('section_database').databaseConnectionInfo.dsConnectionURL2, 'null')]",
             "enableAppGWIngress": "[equals(steps('section_appGateway').loadBalancingOptions, 'agic')]",
+            "enableAutoscaling": "[bool(steps('section_autoScaling').enableAutoscaling)]",
             "enableAzureMonitoring": "[bool(steps('section_aks').aksAdvancedInfo.enableAzureMonitoring)]",
             "enableAzureFileShare": "[bool(steps('section_aks').aksAdvancedInfo.enableAzureFileShare)]",
             "enableCookieBasedAffinity": "[not(bool(steps('section_appGateway').appgwIngress.enableCookieBasedAffinity))]",
@@ -2155,26 +2121,11 @@
             "isSSOSupportEntitled": "[bool(steps('section_aks').imageInfo.isSSOSupportEntitled)]",
             "lbSvcValues": "[if(not(empty(first(if(empty(steps('section_appGateway').lbSVCInfo.lbSVC),parse('[{\"colName\":\"\"}]'), steps('section_appGateway').lbSVCInfo.lbSVC)).colName)),steps('section_appGateway').lbSVCInfo.lbSVC, parse('[]'))]",
             "location": "[location()]",
-            "keyVaultName": "[steps('section_appGateway').appgwIngress.keyVaultName]",
-            "keyVaultResourceGroup": "[steps('section_appGateway').appgwIngress.keyVaultResourceGroup]",
-            "keyVaultSSLBackendRootCertDataSecretName": "[steps('section_appGateway').appgwIngress.keyVaultBackendSSLCertDataSecretName]",
-            "keyVaultSSLCertDataSecretName": "[steps('section_appGateway').appgwIngress.keyVaultSSLCertDataSecretName]",
-            "keyVaultSSLCertPasswordSecretName": "[steps('section_appGateway').appgwIngress.keyVaultSSLCertPasswordSecretName]",
+            "hpaScaleType": "[steps('section_autoScaling').autoScalingInfo.kmsMetrics]",
             "managedServerPrefix": "[basics('basicsOptional').managedServerPrefix]",
             "newOrExistingVnetForApplicationGateway": "[steps('section_appGateway').appgwIngress.vnetForApplicationGateway.newOrExisting]",
             "ocrSSOPSW": "[steps('section_aks').imageInfo.ocrSSOPassword]",
             "ocrSSOUser": "[steps('section_aks').imageInfo.ocrSSOUserName]",
-            "sslConfigurationAccessOption": "[steps('section_sslConfiguration').sslConfigurationAccessOption]",
-            "sslKeyVaultCustomIdentityKeyStoreDataSecretName": "[steps('section_sslConfiguration').keyVaultStoredCustomSSLSettings.keyVaultCustomIdentityKeyStoreDataSecretName]",
-            "sslKeyVaultCustomIdentityKeyStorePassPhraseSecretName": "[steps('section_sslConfiguration').keyVaultStoredCustomSSLSettings.keyVaultCustomIdentityKeyStorePassPhraseSecretName]",
-            "sslKeyVaultCustomIdentityKeyStoreType": "[steps('section_sslConfiguration').keyVaultStoredCustomSSLSettings.keyVaultCustomIdentityKeyStoreType]",
-            "sslKeyVaultCustomTrustKeyStoreDataSecretName": "[steps('section_sslConfiguration').keyVaultStoredCustomSSLSettings.keyVaultCustomTrustKeyStoreDataSecretName]",
-            "sslKeyVaultCustomTrustKeyStorePassPhraseSecretName": "[steps('section_sslConfiguration').keyVaultStoredCustomSSLSettings.keyVaultCustomTrustKeyStorePassPhraseSecretName]",
-            "sslKeyVaultCustomTrustKeyStoreType": "[steps('section_sslConfiguration').keyVaultStoredCustomSSLSettings.keyVaultCustomTrustKeyStoreType]",
-            "sslKeyVaultName": "[steps('section_sslConfiguration').keyVaultStoredCustomSSLSettings.keyVaultName]",
-            "sslKeyVaultPrivateKeyAliasSecretName": "[steps('section_sslConfiguration').keyVaultStoredCustomSSLSettings.keyVaultPrivateKeyAliasSecretName]",
-            "sslKeyVaultPrivateKeyPassPhraseSecretName": "[steps('section_sslConfiguration').keyVaultStoredCustomSSLSettings.keyVaultPrivateKeyPassPhraseSecretName]",
-            "sslKeyVaultResourceGroup": "[steps('section_sslConfiguration').keyVaultStoredCustomSSLSettings.keyVaultResourceGroup]",
             "sslUploadedCustomIdentityKeyStoreData": "[steps('section_sslConfiguration').uploadedCustomSSLSettings.uploadedCustomIdentityKeyStoreData]",
             "sslUploadedCustomIdentityKeyStorePassphrase": "[steps('section_sslConfiguration').uploadedCustomSSLSettings.uploadedCustomIdentityKeyStorePassphrase]",
             "sslUploadedCustomIdentityKeyStoreType": "[steps('section_sslConfiguration').uploadedCustomSSLSettings.uploadedCustomIdentityKeyStoreType]",
@@ -2183,9 +2134,11 @@
             "sslUploadedCustomTrustKeyStoreType": "[steps('section_sslConfiguration').uploadedCustomSSLSettings.uploadedCustomTrustKeyStoreType]",
             "sslUploadedPrivateKeyAlias": "[steps('section_sslConfiguration').uploadedCustomSSLSettings.uploadedPrivateKeyAlias]",
             "sslUploadedPrivateKeyPassPhrase": "[steps('section_sslConfiguration').uploadedCustomSSLSettings.uploadedPrivateKeyPassPhrase]",
+            "useHpa": "[if(equals(steps('section_autoScaling').autoScalingInfo.metricSource, 'kms'), true, false)]",
             "useInternalLB": "[bool(steps('section_appGateway').lbSVCInfo.enableInternalLB)]",
             "useOracleImage": "[if(bool(steps('section_aks').aksAdvancedInfo.useAcrImage), false, true)]",
             "userProvidedAcr": "[last(split(steps('section_aks').aksAdvancedInfo.userProvidedAcrSelector.id, '/'))]",
+            "userProvidedAcrRgName": "[last(take(split(steps('section_aks').aksAdvancedInfo.userProvidedAcrSelector.id, '/'),5))]",
             "userProvidedImagePath": "[steps('section_aks').aksAdvancedInfo.userProvidedImagePath]",
             "validateApplications": true,
             "vnetForApplicationGateway": "[steps('section_appGateway').appgwIngress.vnetForApplicationGateway]",
@@ -2198,7 +2151,8 @@
             "wlsImageTag": "[if(equals(steps('section_aks').imageInfo.oracleImageSelector, 'others'), steps('section_aks').imageInfo.fromOracleImage, steps('section_aks').imageInfo.oracleImageSelector)]",
             "wlsJavaOption": "[basics('basicsOptional').wlsJavaOption]",
             "wlsPassword": "[basics('basicsRequired').wlsPassword]",
-            "wlsUserName": "[basics('basicsRequired').wlsUserName]"
+            "wlsUserName": "[basics('basicsRequired').wlsUserName]",
+            "tagsByResource": "[steps('tags').tagsByResource]"
         }
     }
 }

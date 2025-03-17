@@ -1,4 +1,4 @@
-# Copyright (c) 2021, Oracle Corporation and/or its affiliates.
+# Copyright (c) 2021, 2024, Oracle Corporation and/or its affiliates.
 # Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl.
 # This script runs on Azure Container Instance with Alpine Linux that Azure Deployment script creates.
 #
@@ -9,16 +9,6 @@
 # AKS_CLUSTER_NAME
 # AKS_CLUSTER_RESOURCEGROUP_NAME
 # BASE64_FOR_SERVICE_PRINCIPAL
-# WLS_SSL_KEYVAULT_NAME
-# WLS_SSL_KEYVAULT_RESOURCEGROUP_NAME
-# WLS_SSL_KEYVAULT_IDENTITY_DATA_SECRET_NAME
-# WLS_SSL_KEYVAULT_IDENTITY_PASSWORD_SECRET_NAME
-# WLS_SSL_KEYVAULT_IDENTITY_TYPE
-# WLS_SSL_KEYVAULT_TRUST_DATA_SECRET_NAME
-# WLS_SSL_KEYVAULT_TRUST_PASSWORD_SECRET_NAME
-# WLS_SSL_KEYVAULT_TRUST_TYPE
-# WLS_SSL_KEYVAULT_PRIVATE_KEY_ALIAS
-# WLS_SSL_KEYVAULT_PRIVATE_KEY_PASSWORD
 # WLS_SSL_IDENTITY_DATA
 # WLS_SSL_IDENTITY_PASSWORD
 # WLS_SSL_IDENTITY_TYPE
@@ -27,10 +17,6 @@
 # WLS_SSL_TRUST_TYPE
 # WLS_SSL_PRIVATE_KEY_ALIAS
 # WLS_SSL_PRIVATE_KEY_PASSWORD
-# APPLICATION_GATEWAY_SSL_KEYVAULT_NAME
-# APPLICATION_GATEWAY_SSL_KEYVAULT_RESOURCEGROUP
-# APPLICATION_GATEWAY_SSL_KEYVAULT_FRONTEND_CERT_DATA_SECRET_NAME
-# APPLICATION_GATEWAY_SSL_KEYVAULT_FRONTEND_CERT_PASSWORD_SECRET_NAME
 # APPLICATION_GATEWAY_SSL_FRONTEND_CERT_DATA
 # APPLICATION_GATEWAY_SSL_FRONTEND_CERT_PASSWORD
 # DNS_ZONE_NAME
@@ -126,10 +112,30 @@ function validate_compute_resources() {
   echo_stdout "Check compute resources: passed!"
 }
 
-function validate_ocr_account() {
-  # install docker cli
-  install_docker
+# Ensure the cluster has enough memory resources.
+# The offer deploys a WLS cluster with 1 + ${APP_REPLICAS} pods, each pod requestes 1.5GB and 0.25CPU.
+# Minimum memory requirement: 12 + (APP_REPLICAS + 1)*1.5 GB
+function validate_memory_resources() {
+  if [[ "${createAKSCluster,,}" == "true" ]]; then
+    local requiredMemoryinGB=$(echo "12+($APP_REPLICAS+1)*1.5" | bc)
 
+    local vmDetails=$(az vm list-skus --size ${aksAgentPoolVMSize} -l ${location} --query [0])
+    validate_status "Query VM details of ${aksAgentPoolVMSize} in ${location}."
+
+    local memoryGB=$(echo ${vmDetails} | jq '.capabilities[] | select(.name=="MemoryGB") | .value' | tr -d "\"")
+    local requestedMemory=$(echo "$aksAgentPoolNodeCount*$memoryGB" | bc)
+    echo_stdout "Current requested memory is ${requestedMemory}GB."
+    if [[ $(echo "${requestedMemory}<${requiredMemoryinGB}" | bc) -eq 1 ]]; then
+      echo_stderr "It requires ${requiredMemoryinGB} GiB memory to create the AKS cluster, you have to select a larger VM size or increase node count."
+      exit 1
+    fi
+
+  fi
+
+  echo_stdout "Check memory resources: passed!"
+}
+
+function validate_ocr_account() {
   # ORACLE_ACCOUNT_NAME
   # ORACLE_ACCOUNT_PASSWORD
   docker logout
@@ -137,6 +143,67 @@ function validate_ocr_account() {
   validate_status "login OCR with user ${ORACLE_ACCOUNT_NAME}"
 
   echo_stdout "Check OCR account: passed!"
+}
+
+function check_acr() {
+  local ready=false
+  local attempt=0
+  while [[ "${ready}" == "false" && $attempt -le ${checkAcrMaxAttempt} ]]; do
+      echo_stdout "Check if ACR ${ACR_NAME} is ready, attempt: ${attempt}."
+      ready=true
+
+      local ret=$(az acr show --name ${ACR_NAME} --resource-group ${ACR_RESOURCE_GROUP})
+      if [ -z "${ret}" ]; then
+          ready=false
+      fi
+
+      attempt=$((attempt + 1))
+      sleep ${checkAcrInterval}
+  done
+
+  if [ ${attempt} -gt ${checkAcrMaxAttempt} ]; then
+      echo_stderr "ACR ${ACR_NAME} is not ready."
+      exit 1
+  fi
+
+  echo_stdout "Check if ACR ${ACR_NAME} is ready to import image."
+}
+
+function obtain_image_architecture() {
+  local acrName=$1
+  local repoName=$2
+  local tag=$3
+  local imageUri="${acrName}.azurecr.io/${repoName}:${tag}"
+
+  local imageArch=$(az acr manifest list-metadata -r ${acrName} -n ${repoName} \
+    | jq '.[] | select(.tags != null) | select(.tags[] | length >0 ) | select(.tags[0]=="'${tag}'") | .architecture' \
+    | tr -d "\"")
+  
+  if [[ "${imageArch}" == "null" ]]; then
+      # if the image is multi-architecture, the value is empty.
+      # Use the docker manifest inspect command to get the architecture.
+      # https://learn.microsoft.com/en-us/azure/container-registry/push-multi-architecture-images
+      local acrUserName=$(az acr credential show -n ${acrName} --query "username" | tr -d "\"")
+      local acrPassword=$(az acr credential show -n ${acrName} --query "passwords[0].value" | tr -d "\"")
+      local acrServer="${acrName}.azurecr.io"
+
+      docker login ${acrServer} -u ${acrUserName} -p ${acrPassword}
+      local ret=$(docker manifest inspect ${imageUri} | jq '.manifests[] | .platform.architecture')
+
+      if [[ $ret == *"${constX86Platform}"* && $ret == *"${constARM64Platform}"* ]]; then
+          imageArch="${constMultiArchPlatform}"
+      elif [[ $ret == *"${constX86Platform}"* ]]; then
+          imageArch="${constX86Platform}"
+      elif [[ $ret == *"${constARM64Platform}"* ]]; then
+          imageArch="${constARM64Platform}"
+      else
+          echo_stderr "The architecture of image is not supported. Currently only ARM64 and AMD64 are supported."
+          exit 1
+      fi       
+  fi
+  echo_stdout "Architecture of image is ${imageArch}."
+
+  export IMAGE_ARCHITECTURE=${imageArch}
 }
 
 function validate_ocr_image() {
@@ -157,12 +224,19 @@ function validate_ocr_image() {
     ocrImageFullPath="${ocrLoginServer}/${ocrCpuImagePath}:${cpuTag}"
   fi
 
-  echo_stdout "image path: ${ocrImageFullPath}"
+  echo_stdout "image path: ${ocrImageFullPath}"  
+
+  # to mitigate error in https://learn.microsoft.com/en-us/answers/questions/1188413/the-resource-with-name-name-and-type-microsoft-con
+  az provider register -n Microsoft.ContainerRegistry
+
+  check_acr
 
   # validate the image by importing it to ACR.
   # if failure happens, the image should be unavailable
-  local tmpImagePath="tmp$(date +%s):${wlsImageTag}"
+  local tmpRepo="tmp$(date +%s)"
+  local tmpImagePath="${tmpRepo}:${wlsImageTag}"
   az acr import --name ${ACR_NAME} \
+    --resource-group ${ACR_RESOURCE_GROUP} \
     --source ${ocrImageFullPath} \
     -u ${ORACLE_ACCOUNT_NAME} \
     -p ${ORACLE_ACCOUNT_PASSWORD} \
@@ -173,6 +247,7 @@ function validate_ocr_image() {
   # check if the image is imported successfully.
   local ret=$(az acr repository show --name $ACR_NAME --image ${tmpImagePath})
   if [ -n "${ret}" ]; then
+    obtain_image_architecture ${ACR_NAME} ${tmpRepo} ${wlsImageTag}
     # delete the image from ACR.
     az acr repository delete --name ${ACR_NAME} --image ${tmpImagePath} --yes
   else
@@ -191,8 +266,9 @@ function validate_ocr_image() {
 
 function check_acr_admin_enabled() {
   local acrName=$1
+  local acrRgName=$2
   echo_stdout "check if admin user enabled in ACR $acrName "
-  local adminUserEnabled=$(az acr show --name $acrName --query "adminUserEnabled")
+  local adminUserEnabled=$(az acr show --name $acrName --resource-group ${acrRgName} --query "adminUserEnabled")
   validate_status "query 'adminUserEnabled' property of ACR ${acrName}" "Invalid ACR: ${acrName}"
 
   if [[ "${adminUserEnabled}" == "false" ]]; then
@@ -215,6 +291,8 @@ function validate_acr_image() {
     exit 1
   fi
 
+  obtain_image_architecture ${ACR_NAME_FOR_USER_PROVIDED_IMAGE} ${repository} ${tag}
+
   echo_stdout "Check ACR image: passed!"
 }
 
@@ -230,112 +308,36 @@ function validate_base_image_path() {
 function validate_acr_admin_enabled()
 {
   if [[ "${useOracleImage,,}" == "true" ]]; then
-    check_acr_admin_enabled ${ACR_NAME}
+    check_acr_admin_enabled "${ACR_NAME}" "${ACR_RESOURCE_GROUP}"
   else
-    check_acr_admin_enabled ${ACR_NAME_FOR_USER_PROVIDED_IMAGE}
+    check_acr_admin_enabled "${ACR_NAME_FOR_USER_PROVIDED_IMAGE}" "${ACR_RG_NAME_FOR_USER_PROVIDED_IMAGE}"
   fi
 }
 
-function download_wls_ssl_certificates_from_keyvault() {
-  # check key vault accessibility for template deployment
-  local enabledForTemplateDeployment=$(az keyvault show --name ${WLS_SSL_KEYVAULT_NAME} --query "properties.enabledForTemplateDeployment")
-  if [[ "${enabledForTemplateDeployment,,}" != "true" ]]; then
-    echo_stderr "Make sure Key Vault ${WLS_SSL_KEYVAULT_NAME} is enabled for template deployment. "
-    exit 1
+# Validate whether image architecture is matched with the architecture of the VM.
+# Azure supports both AMD based processor and ARM based CPU, see https://learn.microsoft.com/en-us/azure/virtual-machines/vm-naming-conventions.
+  # For ARM cpu, the VM size name includes letter 'p'.
+  # For AMD cpu, the VM size name does not include letter 'p'.
+# Validate cases:
+  # 1. If the VM size is AMD based, the image should be amd64 or multi-platform.
+  # 2. If the VM size is ARM based, the image should be arm64 or multi-platform.
+# IMAGE_ARCHITECTURE value may be "amd64", "arm64" or "Multi-architecture (amd64 and arm64)".
+function validate_image_compatibility
+{
+  if [[ $aksAgentPoolVMSize == *"p"* ]]; then
+    if [[ "${IMAGE_ARCHITECTURE}" != "${constARM64Platform}" && "${IMAGE_ARCHITECTURE}" != "${constMultiArchPlatform}" ]]; then
+      echo_stderr "The image architecture ${IMAGE_ARCHITECTURE} is not compatible with the ARM based VM size ${aksAgentPoolVMSize}."
+      exit 1
+    fi
+  else
+    if [[ "${IMAGE_ARCHITECTURE}" != "${constX86Platform}" && "${IMAGE_ARCHITECTURE}" != "${constMultiArchPlatform}" ]]; then
+      echo_stderr "The image architecture ${IMAGE_ARCHITECTURE} is not compatible with the AMD based VM size ${aksAgentPoolVMSize}."
+      exit 1
+    fi
   fi
-
-  # allow the identity to access the keyvault
-  local principalId=$(az identity show --ids ${AZ_SCRIPTS_USER_ASSIGNED_IDENTITY} --query "principalId" -o tsv)
-  az keyvault set-policy --name ${WLS_SSL_KEYVAULT_NAME}  --object-id ${principalId} --secret-permissions get list
-  validate_status "grant identity permission to get/list secrets in key vault ${WLS_SSL_KEYVAULT_NAME}"
-
-  local identityDataFileName=${AZ_SCRIPTS_PATH_OUTPUT_DIRECTORY}/identityData.txt
-  local identityPswFileName=${AZ_SCRIPTS_PATH_OUTPUT_DIRECTORY}/identityPsw.txt
-  local trustDataFileName=${AZ_SCRIPTS_PATH_OUTPUT_DIRECTORY}/trustData.txt
-  local trustPswFileName=${AZ_SCRIPTS_PATH_OUTPUT_DIRECTORY}/trustPsw.txt
-  local privateKeyAliasFileName=${AZ_SCRIPTS_PATH_OUTPUT_DIRECTORY}/privateKeyData.txt
-  local privateKeyPswFileName=${AZ_SCRIPTS_PATH_OUTPUT_DIRECTORY}/privateKeyPsw.txt
-
-  rm -f ${identityDataFileName}
-  rm -f ${identityPswFileName}
-  rm -f ${trustDataFileName}
-  rm -f ${trustPswFileName}
-  rm -f ${privateKeyAliasFileName}
-  rm -f ${privateKeyPswFileName}
-
-  # download identity data
-  az keyvault secret download --file ${identityDataFileName} \
-    --name ${WLS_SSL_KEYVAULT_IDENTITY_DATA_SECRET_NAME} \
-    --vault-name ${WLS_SSL_KEYVAULT_NAME} 
-  validate_status "download secret ${WLS_SSL_KEYVAULT_IDENTITY_DATA_SECRET_NAME} from key vault ${WLS_SSL_KEYVAULT_NAME}"
-  # set identity data with values in download file
-  WLS_SSL_IDENTITY_DATA="$(cat ${identityDataFileName} | base64)"
-  # remove the data file
-  rm -f ${identityDataFileName}
-
-  # download identity password
-  az keyvault secret download --file ${identityPswFileName} \
-    --name ${WLS_SSL_KEYVAULT_IDENTITY_PASSWORD_SECRET_NAME} \
-    --vault-name ${WLS_SSL_KEYVAULT_NAME} 
-  validate_status "download secret ${WLS_SSL_KEYVAULT_IDENTITY_PASSWORD_SECRET_NAME} from key vault ${WLS_SSL_KEYVAULT_NAME}"
-  # set identity psw with values in download file
-  WLS_SSL_IDENTITY_PASSWORD="$(cat ${identityPswFileName})"
-  # remove the data file
-  rm -f ${identityPswFileName}
-
-  # download trust data
-  az keyvault secret download --file ${trustDataFileName} \
-    --name ${WLS_SSL_KEYVAULT_TRUST_DATA_SECRET_NAME} \
-    --vault-name ${WLS_SSL_KEYVAULT_NAME} 
-  validate_status "download secret ${WLS_SSL_KEYVAULT_TRUST_DATA_SECRET_NAME} from key vault ${WLS_SSL_KEYVAULT_NAME}"
-  # set trust data with values in download file
-  WLS_SSL_TRUST_DATA="$(cat ${trustDataFileName} | base64)"
-  # remove the data file
-  rm -f ${trustDataFileName}
-
-  # download trust psw
-  az keyvault secret download --file ${trustPswFileName} \
-    --name ${WLS_SSL_KEYVAULT_TRUST_PASSWORD_SECRET_NAME} \
-    --vault-name ${WLS_SSL_KEYVAULT_NAME} 
-  validate_status "download secret ${WLS_SSL_KEYVAULT_TRUST_PASSWORD_SECRET_NAME} from key vault ${WLS_SSL_KEYVAULT_NAME}"
-  # set trust psw with values in download file
-  WLS_SSL_TRUST_PASSWORD="$(cat ${trustPswFileName})"
-  # remove the data file
-  rm -f ${trustPswFileName}
-
-  # download alias
-  az keyvault secret download --file ${privateKeyAliasFileName} \
-    --name ${WLS_SSL_KEYVAULT_PRIVATE_KEY_ALIAS} \
-    --vault-name ${WLS_SSL_KEYVAULT_NAME} 
-  validate_status "download secret ${WLS_SSL_KEYVAULT_PRIVATE_KEY_ALIAS} from key vault ${WLS_SSL_KEYVAULT_NAME}"
-  # set alias with values in download file
-  WLS_SSL_PRIVATE_KEY_ALIAS="$(cat ${privateKeyAliasFileName})"
-  # remove the data file
-  rm -f ${privateKeyAliasFileName}
-
-  # download private key psw
-  az keyvault secret download --file ${privateKeyPswFileName} \
-    --name ${WLS_SSL_KEYVAULT_PRIVATE_KEY_PASSWORD} \
-    --vault-name ${WLS_SSL_KEYVAULT_NAME} 
-  validate_status "download secret ${WLS_SSL_KEYVAULT_PRIVATE_KEY_PASSWORD} from key vault ${WLS_SSL_KEYVAULT_NAME}"
-  # set private key psw with values in download file
-  WLS_SSL_PRIVATE_KEY_PASSWORD="$(cat ${privateKeyPswFileName})"
-  # remove the data file
-  rm -f ${privateKeyPswFileName}
-
-  WLS_SSL_IDENTITY_TYPE="${WLS_SSL_KEYVAULT_IDENTITY_TYPE}"
-  WLS_SSL_TRUST_TYPE="${WLS_SSL_KEYVAULT_TRUST_TYPE}"
-
-  # reset key vault policy
-  az keyvault delete-policy --name ${WLS_SSL_KEYVAULT_NAME}  --object-id ${principalId}
-  validate_status "delete identity permission to get/list secrets in key vault ${WLS_SSL_KEYVAULT_NAME}"
 }
 
 function validate_wls_ssl_certificates() {
-  if [[ "${sslConfigurationAccessOption}" == "${sslCertificateKeyVaultOption}" ]]; then
-    download_wls_ssl_certificates_from_keyvault
-  fi
-
   local wlsIdentityKeyStoreFileName=${AZ_SCRIPTS_PATH_OUTPUT_DIRECTORY}/identity.keystore
   local wlsTrustKeyStoreFileName=${AZ_SCRIPTS_PATH_OUTPUT_DIRECTORY}/trust.keystore
   echo "$WLS_SSL_IDENTITY_DATA" | base64 -d >$wlsIdentityKeyStoreFileName
@@ -372,57 +374,9 @@ function validate_wls_ssl_certificates() {
   echo_stdout "validate SSL key stores: passed!"
 }
 
-function download_application_gateway_certificate_from_keyvault() {
-  # check key vault accessibility for template deployment
-  local enabledForTemplateDeployment=$(az keyvault show --name ${APPLICATION_GATEWAY_SSL_KEYVAULT_NAME} --query "properties.enabledForTemplateDeployment")
-  if [[ "${enabledForTemplateDeployment,,}" != "true" ]]; then
-    echo_stderr "Make sure Key Vault ${APPLICATION_GATEWAY_SSL_KEYVAULT_NAME} is enabled for template deployment. "
-    exit 1
-  fi
-
-  # allow the identity to access the keyvault
-  local principalId=$(az identity show --ids ${AZ_SCRIPTS_USER_ASSIGNED_IDENTITY} --query "principalId" -o tsv)
-  az keyvault set-policy --name ${APPLICATION_GATEWAY_SSL_KEYVAULT_NAME}  --object-id ${principalId} --secret-permissions get list
-  validate_status "grant identity permission to get/list secrets in key vault ${APPLICATION_GATEWAY_SSL_KEYVAULT_NAME}"
-
-  local gatewayCertDataFileName=${AZ_SCRIPTS_PATH_OUTPUT_DIRECTORY}/gatewayCertData.txt
-  local gatewayCertPswFileName=${AZ_SCRIPTS_PATH_OUTPUT_DIRECTORY}/gatewayCertPsw.txt
-
-  rm -f ${gatewayCertDataFileName}
-  rm -f ${gatewayCertPswFileName}
-
-  # download cert data
-  az keyvault secret download --file ${gatewayCertDataFileName} \
-    --name ${APPLICATION_GATEWAY_SSL_KEYVAULT_FRONTEND_CERT_DATA_SECRET_NAME} \
-    --vault-name ${APPLICATION_GATEWAY_SSL_KEYVAULT_NAME}
-  validate_status "download secret ${APPLICATION_GATEWAY_SSL_KEYVAULT_FRONTEND_CERT_DATA_SECRET_NAME} from key vault ${APPLICATION_GATEWAY_SSL_KEYVAULT_NAME}"
-  # set cert data with values in download file
-  APPLICATION_GATEWAY_SSL_FRONTEND_CERT_DATA=$(cat ${gatewayCertDataFileName})
-  # remove the data file
-  rm -f ${gatewayCertDataFileName}
-
-  # download cert data
-  az keyvault secret download --file ${gatewayCertPswFileName} \
-    --name ${APPLICATION_GATEWAY_SSL_KEYVAULT_FRONTEND_CERT_PASSWORD_SECRET_NAME} \
-    --vault-name ${APPLICATION_GATEWAY_SSL_KEYVAULT_NAME} 
-  validate_status "download secret ${APPLICATION_GATEWAY_SSL_KEYVAULT_FRONTEND_CERT_PASSWORD_SECRET_NAME} from key vault ${APPLICATION_GATEWAY_SSL_KEYVAULT_NAME}"
-  # set cert data with values in download file
-  APPLICATION_GATEWAY_SSL_FRONTEND_CERT_PASSWORD=$(cat ${gatewayCertPswFileName})
-  # remove the data file
-  rm -f ${gatewayCertPswFileName}
-
-  # reset key vault policy
-  az keyvault delete-policy --name ${APPLICATION_GATEWAY_SSL_KEYVAULT_NAME}  --object-id ${principalId}
-  validate_status "delete identity permission to get/list secrets in key vault ${APPLICATION_GATEWAY_SSL_KEYVAULT_NAME}"
-}
-
 function validate_gateway_frontend_certificates() {
   if [[ "${appGatewayCertificateOption}" == "generateCert" ]]; then
     return
-  fi
-
-  if [[ "${appGatewayCertificateOption}" == "haveKeyVault" ]]; then
-    download_application_gateway_certificate_from_keyvault
   fi
 
   local appgwFrontCertFileName=${AZ_SCRIPTS_PATH_OUTPUT_DIRECTORY}/gatewaycert.pfx
@@ -487,6 +441,21 @@ function validate_aks_version() {
   fi
 }
 
+function validate_aks_networking() {
+  local networkPluginMode=$(az aks show -g ${AKS_CLUSTER_RESOURCEGROUP_NAME} -n ${AKS_CLUSTER_NAME} | jq '.networkProfile.networkPluginMode' | tr -d "\"")
+  local networkPlugin=$(az aks show -g ${AKS_CLUSTER_RESOURCEGROUP_NAME} -n ${AKS_CLUSTER_NAME} | jq '.networkProfile.networkPlugin' | tr -d "\"")
+
+  if [[ "${networkPluginMode}" != "null" ]]; then
+    echo_stderr "ERROR: invalid network plugin mode ${networkPluginMode} for ${AKS_CLUSTER_NAME}."
+    exit 1
+  fi
+
+  if [[ "${networkPlugin}" != "azure" ]]; then
+    echo_stderr "ERROR: invalid network plugin ${networkPlugin} for ${AKS_CLUSTER_NAME}."
+    exit 1
+  fi
+}
+
 function enable_aks_managed_identity() {
   local identityLength=$(az aks show -g ${AKS_CLUSTER_RESOURCEGROUP_NAME} -n ${AKS_CLUSTER_NAME} | jq '.identity | length')
   echo "identityLength ${identityLength}"
@@ -542,11 +511,24 @@ function validate_appgateway_vnet() {
   fi
 }
 
+function query_available_zones() {
+  if [[ "${createAKSCluster,,}" == "true" ]]; then
+    outputAvailableZones=$(az vm list-skus -l ${location} --size ${aksAgentPoolVMSize} --zone true | jq -c '.[] | .locationInfo[] | .zones')
+  fi
+
+  if [ -z "${outputAvailableZones}" ]; then  
+    outputAvailableZones="[]"
+  fi  
+
+  export outputAvailableZones="${outputAvailableZones}"
+}
+
 function output_result() {
   echo "AKS version: ${outputAksVersion}"
   result=$(jq -n -c \
     --arg aksVersion "$outputAksVersion" \
-    '{aksVersion: $aksVersion}')
+    --arg agentAvailabilityZones "${outputAvailableZones}" \
+    '{aksVersion: $aksVersion, agentAvailabilityZones: $agentAvailabilityZones}')
   echo "result is: $result"
   echo $result >$AZ_SCRIPTS_OUTPUT_PATH
 }
@@ -560,19 +542,24 @@ useOracleImage=$5
 wlsImageTag=$6
 userProvidedImagePath=$7
 enableCustomSSL=$8
-sslConfigurationAccessOption=$9
-appGatewayCertificateOption=${10}
-enableAppGWIngress=${11}
-checkDNSZone=${12}
+appGatewayCertificateOption=${9}
+enableAppGWIngress=${10}
+checkDNSZone=${11}
 
 outputAksVersion=${constDefaultAKSVersion}
-sslCertificateKeyVaultOption="keyVaultStoredConfig"
+
+# install docker cli
+install_docker
 
 validate_compute_resources
+
+validate_memory_resources
 
 validate_base_image_path
 
 validate_acr_admin_enabled
+
+validate_image_compatibility
 
 if [[ "${enableCustomSSL,,}" == "true" ]]; then
   validate_wls_ssl_certificates
@@ -588,11 +575,14 @@ if [[ "${createAKSCluster,,}" == "true" ]]; then
   validate_aks_version
 fi
 
+# validate existing aks cluster
 if [[ "${createAKSCluster,,}" != "true" ]]; then
+  validate_aks_networking
   enable_aks_managed_identity
 fi
 
 validate_appgateway_vnet
 
-output_result
+query_available_zones
 
+output_result

@@ -4,6 +4,7 @@
 param _artifactsLocation string = deployment().properties.templateLink.uri
 @secure()
 param _artifactsLocationSasToken string = ''
+param _globalResourceNameSuffix string
 
 param aksClusterName string 
 param aksClusterRGName string
@@ -21,6 +22,8 @@ param enablePswlessConnection bool = false
 param identity object = {}
 param jdbcDataSourceName string
 param location string
+@description('${label.tagsLabel}')
+param tagsByResource object
 param utcValue string = utcNow()
 param wlsDomainUID string = 'sample-domain1'
 @secure()
@@ -35,11 +38,12 @@ var const_dbUtilityScript='dbUtility.sh'
 var const_scriptLocation = uri(_artifactsLocation, 'scripts/')
 var const_utilityScript= 'utility.sh'
 
-resource deploymentScript 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
-  name: 'ds-wls-db-connection'
+resource deploymentScript 'Microsoft.Resources/deploymentScripts@${azure.apiVersionForDeploymentScript}' = {
+  name: 'ds-wls-db-connection-${_globalResourceNameSuffix}'
   location: location
   kind: 'AzureCLI'
   identity: identity
+  tags: tagsByResource['${identifier.deploymentScripts}']
   properties: {
     azCliVersion: azCliVersion
     environmentVariables: [

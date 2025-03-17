@@ -4,12 +4,15 @@
 param _artifactsLocation string = deployment().properties.templateLink.uri
 @secure()
 param _artifactsLocationSasToken string = ''
+param _globalResourceNameSuffix string
 
 param aksClusterRGName string = ''
 param aksClusterName string = ''
 param azCliVersion string = ''
 param identity object = {}
 param location string
+@description('${label.tagsLabel}')
+param tagsByResource object
 param utcValue string = utcNow()
 param wlsDomainUID string = 'sample-domain1'
 @secure()
@@ -23,11 +26,12 @@ var const_validateAppScript= 'validateApplications.sh'
 var const_utilityScript= 'utility.sh'
 
 
-resource deploymentScript 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
-  name: 'ds-wls-validate-applications'
+resource deploymentScript 'Microsoft.Resources/deploymentScripts@${azure.apiVersionForDeploymentScript}' = {
+  name: 'ds-wls-validate-applications-${_globalResourceNameSuffix}'
   location: location
   kind: 'AzureCLI'
   identity: identity
+  tags: tagsByResource['${identifier.deploymentScripts}']
   properties: {
     azCliVersion: azCliVersion
     environmentVariables: [

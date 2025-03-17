@@ -27,6 +27,10 @@ on:
       dbName:
         description: 'Name of the database. Get from another pipeline run'
         required: true
+      vmSize:
+        description: 'The VM size for the AKS pool'
+        required: true
+        default: Standard_D2s_v3
   # sample cURL
   # curl --verbose -X POST https://api.github.com/repos/<github_user>/weblogic-azure/dispatches -H 'Accept: application/vnd.github.everest-preview+json' -H 'Authorization: token <personal_access_token>' --data '<request_data>'
   # sample <request_data>
@@ -40,6 +44,7 @@ env:
     location: eastus
     dbAdminUser: weblogic
     dbPassword: ${{ secrets.DB_PASSWORD }}
+    dbServerName: weblogicdb
     ocrSSOPSW: ${{ secrets.ORC_SSOPSW }}
     ocrSSOUser: ${{ secrets.ORC_SSOUSER }}
     wdtRuntimePassword: ${{ secrets.WDT_RUNTIMEPSW}}
@@ -50,6 +55,7 @@ jobs:
     preflight:
         runs-on: ubuntu-latest
         outputs:
+          artifactName: ${{steps.artifact_file.outputs.artifactName}}
           resourceGroupForWlsAks: ${{ steps.setup-env-variables-based-on-dispatch-event.outputs.resourceGroupForWlsAks }}
           dbName: ${{ steps.setup-env-variables-based-on-dispatch-event.outputs.dbName }}
           storageAccountName: ${{ steps.setup-env-variables-based-on-dispatch-event.outputs.storageAccountName }}
@@ -57,18 +63,25 @@ jobs:
           isForDemo: ${{ steps.setup-env-variables-based-on-dispatch-event.outputs.isForDemo }}
           gitUserNameForArtifactsLocation: ${{ steps.setup-env-variables-based-on-dispatch-event.outputs.gitUserNameForArtifactsLocation }}
           testBranchNameForArtifactsLocation: ${{ steps.setup-env-variables-based-on-dispatch-event.outputs.testBranchNameForArtifactsLocation }}
-          azCliVersion: ${{steps.get-external-dependencies-version.outputs.azCliVersion}}
+          azCliVersion: ${{steps.set-az-cli-version.outputs.azCliVersion}}
+          vmSize: ${{ steps.setup-env-variables-based-on-dispatch-event.outputs.vmSize }}
         steps:
+            - uses: actions/checkout@v2.3.4
+            - name: Set AZ CLI Version
+              uses: ./.github/actions/setvars
+              with:
+                varFilePath: ./.github/variables/vm-dependencies.env
+            - name: Output Az CLi version
+              id: set-az-cli-version
+              run: |
+                echo "azCliVersion=${azCliVersion}" >> $GITHUB_OUTPUT
             - name: Get versions of external dependencies
               id: get-external-dependencies-version
               run: |
                 curl -Lo external-deps-versions.properties https://raw.githubusercontent.com/Azure/azure-javaee-iaas/main/external-deps-versions.properties
                 source external-deps-versions.properties
-                echo "azCliVersion=${AZ_CLI_VERSION}" >> $GITHUB_ENV
                 echo "bicepVersion=${BICEP_VERSION}" >> $GITHUB_ENV
                 echo "refArmttk=${ARM_TTK_REFERENCE}" >> $GITHUB_ENV
-                echo "refJavaee=${AZURE_JAVAEE_IAAS_REFERENCE}" >> $GITHUB_ENV
-                echo "azCliVersion=${AZ_CLI_VERSION}" >> $GITHUB_OUTPUT
             - name: Setup environment variables
               id: setup-env-variables-based-on-dispatch-event
               run: |
@@ -80,6 +93,7 @@ jobs:
                   isForDemo=${{ github.event.inputs.isForDemo }}
                   gitUserNameForArtifactsLocation=${{ github.event.inputs.gitUserNameForArtifactsLocation }}
                   testBranchNameForArtifactsLocation=${{ github.event.inputs.testBranchNameForArtifactsLocation }}
+                  vmSize=${{ github.event.inputs.vmSize }}
                 else
                   resourceGroupForWlsAks=wlsd-aks-${{ github.event.client_payload.disambiguationSuffix }}-${{ github.run_number }}
                   dbName=${{ github.event.client_payload.dbName }}
@@ -88,6 +102,7 @@ jobs:
                   isForDemo=${{ github.event.client_payload.isForDemo }}
                   gitUserNameForArtifactsLocation=${{ github.event.client_payload.gitUserNameForArtifactsLocation }}
                   testBranchNameForArtifactsLocation=${{ github.event.client_payload.testBranchNameForArtifactsLocation }}
+                  vmSize=${{ github.event.client_payload.vmSize }}
                 fi
 
                 echo "##[set-output name=resourceGroupForWlsAks;]${resourceGroupForWlsAks}"
@@ -97,6 +112,7 @@ jobs:
                 echo "##[set-output name=isForDemo;]${isForDemo}"
                 echo "##[set-output name=gitUserNameForArtifactsLocation;]${gitUserNameForArtifactsLocation}"
                 echo "##[set-output name=testBranchNameForArtifactsLocation;]${testBranchNameForArtifactsLocation}"
+                echo "##[set-output name=vmSize;]${vmSize}"
 
                 echo "resourceGroupForWlsAks=${resourceGroupForWlsAks}" >> $GITHUB_ENV
                 echo "dbName=${dbName}" >> $GITHUB_ENV
@@ -105,30 +121,24 @@ jobs:
                 echo "isForDemo=${isForDemo}" >> $GITHUB_ENV
                 echo "gitUserNameForArtifactsLocation=${gitUserNameForArtifactsLocation}" >> $GITHUB_ENV
                 echo "testBranchNameForArtifactsLocation=${testBranchNameForArtifactsLocation}" >> $GITHUB_ENV
-            - name: Set up JDK 1.8
-              uses: actions/setup-java@v1
+                echo "vmSize=${vmSize}" >> $GITHUB_ENV
+            - uses: actions/checkout@v2.3.4
+            - name: Set up Maven with GitHub token
+              uses: ./.github/actions/setupmaven
               with:
-                java-version: 1.8
+                token: ${{ secrets.GITHUB_TOKEN }}
             - name: Set up bicep
               run: |
                 curl -Lo bicep https://github.com/Azure/bicep/releases/download/${bicepVersion}/bicep-linux-x64
                 chmod +x ./bicep
                 sudo mv ./bicep /usr/local/bin/bicep
                 bicep --version
-            - name: Checkout azure-javaee-iaas
-              uses: actions/checkout@v2
-              with:
-                repository: Azure/azure-javaee-iaas
-                path: azure-javaee-iaas
-                ref: ${{ env.refJavaee }}
             - name: Checkout arm-ttk
               uses: actions/checkout@v2
               with:
                 repository: Azure/arm-ttk
                 path: arm-ttk
                 ref: ${{ env.refArmttk }}
-            - name: Build azure-javaee-iaas
-              run: mvn -DskipTests clean install --file azure-javaee-iaas/pom.xml
             - name: Checkout weblogic-azure
               uses: actions/checkout@v2
               with:
@@ -138,13 +148,13 @@ jobs:
             - name: Generate artifact file name and path
               id: artifact_file
               run: |
-                version=$(awk '/<version>[^<]+<\/version>/{gsub(/<version>|<\/version>/,"",$1);print $1;exit;}' weblogic-azure/weblogic-azure-aks/pom.xml)
+                version=$(mvn -q -Dexec.executable=echo -Dexec.args='${version.wls-on-aks-azure-marketplace}' --file weblogic-azure/pom.xml --non-recursive exec:exec)
                 artifactName=wls-on-aks-azure-marketplace-$version-arm-assembly
                 unzip weblogic-azure/weblogic-azure-aks/target/$artifactName.zip -d weblogic-azure/weblogic-azure-aks/target/$artifactName
                 echo "##[set-output name=artifactName;]${artifactName}"
                 echo "##[set-output name=artifactPath;]weblogic-azure/weblogic-azure-aks/target/$artifactName"
             - name: Archive weblogic-azure/weblogic-azure-aks template
-              uses: actions/upload-artifact@v1
+              uses: actions/upload-artifact@v4
               if: success()
               with:
                 name: ${{steps.artifact_file.outputs.artifactName}}
@@ -166,7 +176,12 @@ jobs:
               with:
                 azcliversion: ${{ env.azCliVersion }}
                 inlineScript: |
-                    az storage blob upload --account-name ${{ env.storageAccountName }} --container-name ${{ env.storageContainerName }} --file cargotracker/target/cargo-tracker.war --name cargo-tracker.war  
+                    az storage blob upload \
+                      --account-name ${{ env.storageAccountName }} \
+                      --container-name ${{ env.storageContainerName }} \
+                      --file cargotracker/target/cargo-tracker.war \
+                      --name cargo-tracker.war \
+                      --overwrite
     deploy-wls-on-aks:
         needs: preflight
         runs-on: ubuntu-latest
@@ -178,21 +193,11 @@ jobs:
               uses: actions/checkout@v2
               with:
                 path: weblogic-azure
-            - name: Get version information from weblogic-azure/weblogic-azure-aks/pom.xml
-              id: version
-              run: |
-                version=$(awk '/<version>[^<]+<\/version>/{gsub(/<version>|<\/version>/,"",$1);print $1;exit;}' weblogic-azure/weblogic-azure-aks/pom.xml)
-                echo "version=${version}" >> $GITHUB_ENV
-            - name: Output artifact name for Download action
-              id: artifact_file
-              run: |
-                artifactName=wls-on-aks-azure-marketplace-$version-arm-assembly
-                echo "artifactName=${artifactName}" >> $GITHUB_ENV
-                echo "##[set-output name=artifactName;]${artifactName}"
             - name: Download artifact for deployment
-              uses: actions/download-artifact@v1
+              uses: actions/download-artifact@v4
               with:
-                name: ${{steps.artifact_file.outputs.artifactName}}
+                name: ${{needs.preflight.outputs.artifactName}}
+                path: ${{needs.preflight.outputs.artifactName}}
             - uses: azure/login@v1
               id: azure-login
               with:
@@ -202,9 +207,22 @@ jobs:
               with:
                 azcliversion: ${{ env.azCliVersion }}
                 inlineScript: |
-                    cargoTrackerBlobUrl=$(az storage blob url --account-name ${{ needs.preflight.outputs.storageAccountName }} --container-name ${{ needs.preflight.outputs.storageContainerName }} --name cargo-tracker.war -o tsv)
-                    polishedUrl=$(echo ${cargoTrackerBlobUrl} | sed 's,/,\\\/,g')
-                    echo "cargoTrackerBlobUrl=${polishedUrl}" >> $GITHUB_ENV
+                    sasTokenValidTime=3600
+                    expiryData=$(( `date +%s`+${sasTokenValidTime}))
+                    sasEnd=`date -d@"$expiryData" -u '+%Y-%m-%dT%H:%MZ'`
+                    sasToken=$(az storage account generate-sas \
+                        --permissions r \
+                        --account-name ${{ needs.preflight.outputs.storageAccountName }} \
+                        --services b \
+                        --resource-types sco \
+                        --expiry $sasEnd  -o tsv)
+                    cargoTrackerBlobUrl=$(az storage blob url \
+                        --container-name ${{ needs.preflight.outputs.storageContainerName }} \
+                        --name cargo-tracker.war \
+                        --account-name ${{ needs.preflight.outputs.storageAccountName }} \
+                        --sas-token ${sasToken} -o tsv)
+
+                    echo "cargoTrackerBlobUrl=${cargoTrackerBlobUrl}" >> $GITHUB_ENV
             - name: Create Resource Group
               uses: azure/CLI@v1
               with:
@@ -219,26 +237,30 @@ jobs:
                 path: cargotracker
             - name: Prepare parameter file
               run: |
-                echo "replace placeholders using real parameter"
-                sed -i "s/#location#/${location}/g; \
-                        s/#wlsUserName#/${wlsUserName}/g; \
-                        s/#wlsPassword#/${wlsPassword}/g; \
-                        s/#ocrSSOPSW#/${ocrSSOPSW}/g; \
-                        s/#ocrSSOUser#/${ocrSSOUser}/g; \
-                        s/#appPackageUrls#/${cargoTrackerBlobUrl}/g; \
-                        s/#wdtRuntimePassword#/${wdtRuntimePassword}/g; \
-                        s/#testbranchName#/${{ needs.preflight.outputs.testBranchNameForArtifactsLocation }}/g; \
-                        s/#gitUserName#/${{ needs.preflight.outputs.gitUserNameForArtifactsLocation }}/g; \
-                        s/#dbPassword#/${dbPassword}/g; \
-                        s/#dbUser#/${dbAdminUser}@${{ needs.preflight.outputs.dbName }}/g; \
-                        s/#dsConnectionURL#/jdbc:postgresql:\/\/${{ needs.preflight.outputs.dbName }}.postgres.database.azure.com:5432\/postgres/g" \
-                        weblogic-azure/weblogic-azure-aks/src/test/setupWlsAksParameters.jsonc
+                echo "generate parameter file"
+                bash weblogic-azure/weblogic-azure-aks/src/test/genWlsAksParameters.sh \
+                  ${{ needs.preflight.outputs.gitUserNameForArtifactsLocation }} \
+                  ${{ needs.preflight.outputs.testBranchNameForArtifactsLocation }} \
+                  "${cargoTrackerBlobUrl}" \
+                  ${dbPassword} \
+                  ${dbAdminUser} \
+                  jdbc:postgresql:\/\/${{ needs.preflight.outputs.dbName }}.postgres.database.azure.com:5432\/${{ env.dbServerName }} \
+                  ${location} \
+                  ${ocrSSOPSW} \
+                  ${ocrSSOUser} \
+                  ${wdtRuntimePassword} \
+                  ${wlsPassword} \
+                  ${wlsUserName} \
+                  ${{ needs.preflight.outputs.vmSize }} \
+                  weblogic-azure/weblogic-azure-aks/src/test/setupWlsAksParameters.jsonc
             - name: Deploy WebLogic Server Cluster Domain offer
               id: deploy-wls-cluster
               uses: azure/CLI@v1
               with:
                 azcliversion: ${{ env.azCliVersion }}
                 inlineScript: |
+                    artifactName=${{ needs.preflight.outputs.artifactName }}
+
                     az deployment group create \
                     --verbose \
                     --resource-group ${{ needs.preflight.outputs.resourceGroupForWlsAks }} \
@@ -279,13 +301,14 @@ jobs:
                 az aks get-credentials --resource-group ${{ needs.preflight.outputs.resourceGroupForWlsAks }} --name $aksClusterName
             - name: Generate&Apply configmap
               run: |
+                wlsDomainNS=sample-domain1-ns
                 wlsConfigmapName=sample-domain1-wdt-config-map
                 wlsConfigmapJson=cargo-tracker-db.json
                 modelFilePath=models
                 mkdir ${modelFilePath}
                 echo "create configmap"
                 echo "export exisiting configmap"
-                kubectl -n sample-domain1-ns get configmap ${wlsConfigmapName} -o json >${wlsConfigmapJson}
+                kubectl -n ${wlsDomainNS} get configmap ${wlsConfigmapName} -o json >${wlsConfigmapJson}
 
                 echo "query model keys"
                 keyList=$(cat ${wlsConfigmapJson} | jq '.data | keys[]' | tr -d "\"")
@@ -296,24 +319,25 @@ jobs:
                 done
 
                 # remove current configmap and create a new one
-                kubectl -n sample-domain1-ns delete configmap ${wlsConfigmapName}
+                kubectl -n ${wlsDomainNS} delete configmap ${wlsConfigmapName}
 
                 cp cargotracker/src/test/aks/cargo-tracker-jms.yaml ${modelFilePath}/cargo-tracker-jms.yaml
 
-                kubectl -n sample-domain1-ns create configmap ${wlsConfigmapName} \
+                kubectl -n ${wlsDomainNS} create configmap ${wlsConfigmapName} \
                 --from-file=${modelFilePath}
 
-                kubectl -n sample-domain1-ns label configmap ${wlsConfigmapName} \
+                kubectl -n ${wlsDomainNS} label configmap ${wlsConfigmapName} \
                 weblogic.domainUID=sample-domain1
-                restartVersion=$(kubectl -n sample-domain1-ns get domain sample-domain1 '-o=jsonpath={.spec.restartVersion}')
+                restartVersion=$(kubectl -n ${wlsDomainNS} get domain sample-domain1 '-o=jsonpath={.spec.restartVersion}')
                 # increase restart version
                 restartVersion=$((restartVersion + 1))
                 # record timestamp before apply changes
                 timestampBeforePatchingDomain=$(date +%s)
-                # get the replica number
-                replicas=$(kubectl -n sample-domain1-ns get domain sample-domain1 -o json | jq '. | .spec.clusters[] | .replicas')
+                # get the replica number                
+                clusterName=$(kubectl get cluster -n ${wlsDomainNS} -o json | jq -r '.items[0].metadata.name')
+                replicas=$(kubectl -n ${wlsDomainNS} get cluster ${clusterName} -o json | jq '. | .spec.replicas')
                 echo "append configmap and update restart version"
-                kubectl -n sample-domain1-ns patch domain sample-domain1 \
+                kubectl -n ${wlsDomainNS} patch domain sample-domain1 \
                     --type=json \
                     '-p=[{"op": "replace", "path": "/spec/restartVersion", "value": "'${restartVersion}'" }, {"op": "add", "path": "/spec/configuration/model/configMap", "value": "'${wlsConfigmapName}'" }]'
                 echo "timestampBeforePatchingDomain=${timestampBeforePatchingDomain}" >> $GITHUB_ENV

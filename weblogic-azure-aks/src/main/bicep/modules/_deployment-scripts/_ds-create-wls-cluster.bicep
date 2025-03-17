@@ -4,13 +4,16 @@
 param _artifactsLocation string = deployment().properties.templateLink.uri
 @secure()
 param _artifactsLocationSasToken string = ''
+param _globalResourceNameSuffix string
 
 param aksClusterRGName string = ''
 param aksClusterName string = ''
 param acrName string = ''
+param acrResourceGroupName string = ''
 param appPackageUrls array = []
 param appReplicas int = 2
 param azCliVersion string = ''
+param cpuPlatform string = ''
 param databaseType string = 'oracle'
 param dbDriverLibrariesUrls array = []
 param enableCustomSSL bool = false
@@ -18,6 +21,7 @@ param enableAdminT3Tunneling bool = false
 param enableClusterT3Tunneling bool = false
 param enablePswlessConnection bool = false
 param enablePV bool = false
+param fileShareName string
 param identity object = {}
 param isSSOSupportEntitled bool
 param location string
@@ -26,6 +30,8 @@ param managedServerPrefix string = 'managed-server'
 param ocrSSOPSW string
 param ocrSSOUser string
 param storageAccountName string = 'null'
+@description('${label.tagsLabel}')
+param tagsByResource object
 param t3ChannelAdminPort int = 7005
 param t3ChannelClusterPort int = 8011
 param utcValue string = utcNow()
@@ -76,11 +82,12 @@ var const_setUpDomainScript = 'setupWLSDomain.sh'
 var const_updateDomainConfigScript= 'updateDomainConfig.sh'
 var const_utilityScript= 'utility.sh'
 
-resource deploymentScript 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
-  name: 'ds-wls-cluster-creation'
+resource deploymentScript 'Microsoft.Resources/deploymentScripts@${azure.apiVersionForDeploymentScript}' = {
+  name: 'ds-wls-cluster-creation-${_globalResourceNameSuffix}'
   location: location
   kind: 'AzureCLI'
   identity: identity
+  tags: tagsByResource['${identifier.deploymentScripts}']
   properties: {
     azCliVersion: azCliVersion
     environmentVariables: [
@@ -89,12 +96,20 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
         value: acrName
       }
       {
+        name: 'ACR_RESOURCEGROUP_NAME'
+        value: acrResourceGroupName
+      }
+      {
         name: 'AKS_CLUSTER_NAME'
         value: aksClusterName
       }
       {
         name: 'AKS_CLUSTER_RESOURCEGROUP_NAME'
         value: aksClusterRGName
+      }
+      {
+        name: 'CPU_PLATFORM'
+        value: cpuPlatform
       }
       {
         name: 'CURRENT_RESOURCEGROUP_NAME'
@@ -125,6 +140,10 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
         value: string(enablePV)
       }
       {
+        name: 'FILE_SHARE_NAME'
+        value: fileShareName
+      }
+      {
         name: 'ORACLE_ACCOUNT_NAME'
         value: ocrSSOUser
       }
@@ -143,6 +162,10 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
       {
         name: 'STORAGE_ACCOUNT_NAME'
         value: storageAccountName
+      }
+      {
+        name: 'TAG_VM'
+        value: string(tagsByResource['${identifier.virtualMachines}'])
       }
       {
         name: 'URL_3RD_DATASOURCE'

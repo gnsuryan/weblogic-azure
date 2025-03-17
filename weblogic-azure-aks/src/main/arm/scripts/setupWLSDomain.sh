@@ -1,4 +1,4 @@
-# Copyright (c) 2021, Oracle Corporation and/or its affiliates.
+# Copyright (c) 2021, 2024, Oracle Corporation and/or its affiliates.
 # Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl.
 # This script runs on Azure Container Instance with Alpine Linux that Azure Deployment script creates.
 # env inputs:
@@ -285,11 +285,6 @@ function install_utilities() {
     validate_status ${ret}
 }
 
-# Connect to AKS cluster
-function connect_aks_cluster() {
-    az aks get-credentials --resource-group ${AKS_CLUSTER_RESOURCEGROUP_NAME} --name ${AKS_CLUSTER_NAME} --overwrite-existing
-}
-
 # remove the operator if it is not running.
 function uninstall_operator() {
     echo "remove operator"
@@ -380,13 +375,16 @@ function install_wls_operator() {
 
 # Query ACR login server, username, password
 function query_acr_credentials() {
-    ACR_LOGIN_SERVER=$(az acr show -n $ACR_NAME --query 'loginServer' -o tsv)
+    # to mitigate error in https://learn.microsoft.com/en-us/answers/questions/1188413/the-resource-with-name-name-and-type-microsoft-con
+    az provider register -n Microsoft.ContainerRegistry
+    
+    ACR_LOGIN_SERVER=$(az acr show -n $ACR_NAME -g ${ACR_RESOURCEGROUP_NAME} --query 'loginServer' -o tsv)
     validate_status ${ACR_LOGIN_SERVER}
     
-    ACR_USER_NAME=$(az acr credential show -n $ACR_NAME --query 'username' -o tsv)
+    ACR_USER_NAME=$(az acr credential show -n $ACR_NAME -g ${ACR_RESOURCEGROUP_NAME} --query 'username' -o tsv)
     validate_status "Query ACR credentials."
 
-    ACR_PASSWORD=$(az acr credential show -n $ACR_NAME --query 'passwords[0].value' -o tsv)
+    ACR_PASSWORD=$(az acr credential show -n $ACR_NAME -g ${ACR_RESOURCEGROUP_NAME} --query 'passwords[0].value' -o tsv)
     validate_status "Query ACR credentials."
 }
 
@@ -399,6 +397,9 @@ function build_docker_image() {
     echo "build a new image including the new applications"
     chmod ugo+x $scriptDir/createVMAndBuildImage.sh
     echo ${ACR_PASSWORD} | bash $scriptDir/createVMAndBuildImage.sh $newImageTag ${ACR_LOGIN_SERVER} ${ACR_USER_NAME}
+
+    # to mitigate error in https://learn.microsoft.com/en-us/answers/questions/1188413/the-resource-with-name-name-and-type-microsoft-con
+    az provider register -n Microsoft.ContainerRegistry
 
     az acr repository show -n ${ACR_NAME} --image aks-wls-images:${newImageTag}
     if [ $? -ne 0 ]; then
@@ -547,6 +548,7 @@ function create_pv() {
     sed -i -e "s:@PV_NAME@:${pvName}:g" ${customPVYaml}
     sed -i -e "s:@PVC_NAME@:${pvcName}:g" ${customPVYaml}
     sed -i -e "s:@STORAGE_ACCOUNT@:${STORAGE_ACCOUNT_NAME}:g" ${customPVYaml}
+    sed -i -e "s:@FILE_SHARE_NAME@:${FILE_SHARE_NAME}:g" ${customPVYaml}
 
     # generate pv configurations
     customPVCYaml=${scriptDir}/pvc.yaml
@@ -734,7 +736,7 @@ source ${scriptDir}/common.sh
 source ${scriptDir}/utility.sh
 
 export adminServerName="admin-server"
-export azFileShareName="weblogic"
+export azFileShareName=${FILE_SHARE_NAME}
 export exitCode=0
 export kubectlSecretForACR="regsecret"
 export kubectlWDTEncryptionSecret="${WLS_DOMAIN_UID}-runtime-encryption-secret"
@@ -744,7 +746,6 @@ export newImageTag=$(date +%s)
 export operatorName="weblogic-operator"
 # seconds
 export sasTokenValidTime=3600
-export storageFileShareName="weblogic"
 export storageResourceGroup=${CURRENT_RESOURCEGROUP_NAME}
 export sharedPath="/shared"
 export wlsDomainNS="${WLS_DOMAIN_UID}-ns"
@@ -766,7 +767,7 @@ query_acr_credentials
 
 build_docker_image
 
-connect_aks_cluster
+connect_aks $AKS_CLUSTER_NAME $AKS_CLUSTER_RESOURCEGROUP_NAME
 
 install_wls_operator
 

@@ -1,23 +1,29 @@
-// Copyright (c) 2021, Oracle Corporation and/or its affiliates.
+// Copyright (c) 2021, 2024 Oracle Corporation and/or its affiliates.
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl.
 
+param _globalResourceNameSuffix string
 param aksClusterRGName string = ''
 param aksClusterName string = ''
 param azCliVersion string = ''
 param identity object = {}
 param location string
+@description('${label.tagsLabel}')
+param tagsByResource object
 param utcValue string = utcNow()
 param wlsClusterName string = 'cluster-1'
 param wlsDomainUID string = 'sample-domain1'
 
 // To mitigate arm-ttk error: Unreferenced variable: $fxv#0
+var base64_common = loadFileAsBase64('../../../arm/scripts/common.sh')
 var base64_queryDomainConfigurations = loadFileAsBase64('../../../arm/scripts/inline-scripts/queryDomainConfigurations.sh')
+var base64_utility = loadFileAsBase64('../../../arm/scripts/utility.sh')
 
-resource deploymentScript 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
-  name: 'ds-query-wls-configurations'
+resource deploymentScript 'Microsoft.Resources/deploymentScripts@${azure.apiVersionForDeploymentScript}' = {
+  name: 'ds-query-wls-configurations-${_globalResourceNameSuffix}'
   location: location
   kind: 'AzureCLI'
   identity: identity
+  tags: tagsByResource['${identifier.deploymentScripts}']
   properties: {
     azCliVersion: azCliVersion
     environmentVariables: [
@@ -38,7 +44,7 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
         value: wlsDomainUID
       }
     ]
-    scriptContent: base64ToString(base64_queryDomainConfigurations)
+    scriptContent: format('{0}\r\n\r\n{1}\r\n\r\n{2}',base64ToString(base64_common), base64ToString(base64_utility), base64ToString(base64_queryDomainConfigurations))
     cleanupPreference: 'OnSuccess'
     retentionInterval: 'P1D'
     forceUpdateTag: utcValue

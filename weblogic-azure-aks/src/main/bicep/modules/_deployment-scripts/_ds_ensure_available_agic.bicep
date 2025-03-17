@@ -13,9 +13,9 @@ param utcValue string = utcNow()
 var base64_common = loadFileAsBase64('../../../arm/scripts/common.sh')
 var base64_enableAgic = loadFileAsBase64('../../../arm/scripts/inline-scripts/enableAgic.sh')
 var base64_utility = loadFileAsBase64('../../../arm/scripts/utility.sh')
-var const_deploymentName='ds-validate-agic'
+var const_deploymentName='ds-validate-agic-${uniqueString(utcValue)}'
 
-resource deploymentScript 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
+resource deploymentScript 'Microsoft.Resources/deploymentScripts@${azure.apiVersionForDeploymentScript}' = {
   name: const_deploymentName
   location: location
   kind: 'AzureCLI'

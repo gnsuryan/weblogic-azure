@@ -1,7 +1,9 @@
 // Copyright (c) 2021, Oracle Corporation and/or its affiliates.
 // Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl.
 
+param _globalResourceNameSuffix string
 param acrName string
+param acrResourceGroupName string
 param aksAgentPoolNodeCount int
 param aksAgentPoolVMSize string = ''
 param aksClusterRGName string
@@ -11,6 +13,7 @@ param appGatewayCertificateOption string
 param appGatewaySSLCertData string
 @secure()
 param appGatewaySSLCertPassword string
+param appReplicas int
 param azCliVersion string = ''
 param createAKSCluster bool
 param createDNSZone bool
@@ -19,27 +22,12 @@ param dnszoneRGName string
 param enableAppGWIngress bool
 param enableCustomSSL bool
 param enableDNSConfiguration bool
-param keyVaultName string
-param keyVaultResourceGroup string
-param keyVaultSSLCertDataSecretName string
-param keyVaultSSLCertPasswordSecretName string
 param identity object = {}
 param isSSOSupportEntitled bool
 param location string
 @secure()
 param ocrSSOPSW string
 param ocrSSOUser string
-param sslConfigurationAccessOption string
-param sslKeyVaultCustomIdentityKeyStoreDataSecretName string
-param sslKeyVaultCustomIdentityKeyStorePassPhraseSecretName string
-param sslKeyVaultCustomIdentityKeyStoreType string
-param sslKeyVaultCustomTrustKeyStoreDataSecretName string
-param sslKeyVaultCustomTrustKeyStorePassPhraseSecretName string
-param sslKeyVaultCustomTrustKeyStoreType string
-param sslKeyVaultName string
-param sslKeyVaultPrivateKeyAliasSecretName string
-param sslKeyVaultPrivateKeyPassPhraseSecretName string
-param sslKeyVaultResourceGroup string
 @secure()
 param sslUploadedCustomIdentityKeyStoreData string
 @secure()
@@ -54,8 +42,11 @@ param sslUploadedCustomTrustKeyStoreType string
 param sslUploadedPrivateKeyAlias string
 @secure()
 param sslUploadedPrivateKeyPassPhrase string
+@description('${label.tagsLabel}')
+param tagsByResource object
 param useAksWellTestedVersion bool = true
 param userProvidedAcr string
+param userProvidedAcrRgName string
 param userProvidedImagePath string
 param useOracleImage bool
 param vnetForApplicationGateway object
@@ -66,15 +57,16 @@ param wlsImageTag string
 var base64_common = loadFileAsBase64('../../../arm/scripts/common.sh')
 var base64_utility = loadFileAsBase64('../../../arm/scripts/utility.sh')
 var base64_validateParameters = loadFileAsBase64('../../../arm/scripts/inline-scripts/validateParameters.sh')
-var const_arguments = '${location} ${createAKSCluster} ${aksAgentPoolVMSize} ${aksAgentPoolNodeCount} ${useOracleImage} ${wlsImageTag} ${userProvidedImagePath} ${enableCustomSSL} ${sslConfigurationAccessOption} ${appGatewayCertificateOption} ${enableAppGWIngress} ${const_checkDNSZone}'
+var const_arguments = '${location} ${createAKSCluster} ${aksAgentPoolVMSize} ${aksAgentPoolNodeCount} ${useOracleImage} ${wlsImageTag} ${userProvidedImagePath} ${enableCustomSSL} ${appGatewayCertificateOption} ${enableAppGWIngress} ${const_checkDNSZone}'
 var const_checkDNSZone = enableDNSConfiguration && !createDNSZone
-var const_deploymentName = 'ds-validate-parameters-and-fail-fast'
+var const_deploymentName = 'ds-validate-parameters-and-fail-fast-${_globalResourceNameSuffix}'
 
-resource deploymentScript 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
+resource deploymentScript 'Microsoft.Resources/deploymentScripts@${azure.apiVersionForDeploymentScript}' = {
   name: const_deploymentName
   location: location
   kind: 'AzureCLI'
   identity: identity
+  tags: tagsByResource['${identifier.deploymentScripts}']
   properties: {
     azCliVersion: azCliVersion
     arguments: const_arguments
@@ -96,8 +88,16 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
         value: acrName
       }
       {
+        name: 'ACR_RESOURCE_GROUP'
+        value: acrResourceGroupName
+      }
+      {
         name: 'ACR_NAME_FOR_USER_PROVIDED_IMAGE'
         value: userProvidedAcr
+      }
+      {
+        name: 'ACR_RG_NAME_FOR_USER_PROVIDED_IMAGE'
+        value: userProvidedAcrRgName
       }
       {
         name: 'AKS_CLUSTER_NAME'
@@ -112,44 +112,8 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
         value: aksVersion
       }
       {
-        name: 'WLS_SSL_KEYVAULT_NAME'
-        value: sslKeyVaultName
-      }
-      {
-        name: 'WLS_SSL_KEYVAULT_RESOURCEGROUP_NAME'
-        value: sslKeyVaultResourceGroup
-      }
-      {
-        name: 'WLS_SSL_KEYVAULT_IDENTITY_DATA_SECRET_NAME'
-        value: sslKeyVaultCustomIdentityKeyStoreDataSecretName
-      }
-      {
-        name: 'WLS_SSL_KEYVAULT_IDENTITY_PASSWORD_SECRET_NAME'
-        value: sslKeyVaultCustomIdentityKeyStorePassPhraseSecretName
-      }
-      {
-        name: 'WLS_SSL_KEYVAULT_IDENTITY_TYPE'
-        value: sslKeyVaultCustomIdentityKeyStoreType
-      }
-      {
-        name: 'WLS_SSL_KEYVAULT_TRUST_DATA_SECRET_NAME'
-        value: sslKeyVaultCustomTrustKeyStoreDataSecretName
-      }
-      {
-        name: 'WLS_SSL_KEYVAULT_TRUST_PASSWORD_SECRET_NAME'
-        value: sslKeyVaultCustomTrustKeyStorePassPhraseSecretName
-      }
-      {
-        name: 'WLS_SSL_KEYVAULT_TRUST_TYPE'
-        value: sslKeyVaultCustomTrustKeyStoreType
-      }
-      {
-        name: 'WLS_SSL_KEYVAULT_PRIVATE_KEY_ALIAS'
-        value: sslKeyVaultPrivateKeyAliasSecretName
-      }
-      {
-        name: 'WLS_SSL_KEYVAULT_PRIVATE_KEY_PASSWORD'
-        value: sslKeyVaultPrivateKeyPassPhraseSecretName
+        name: 'APP_REPLICAS'
+        value: appReplicas
       }
       {
         name: 'WLS_SSL_IDENTITY_DATA'
@@ -184,22 +148,6 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
         secureValue: sslUploadedPrivateKeyPassPhrase
       }
       {
-        name: 'APPLICATION_GATEWAY_SSL_KEYVAULT_NAME'
-        value: keyVaultName
-      }
-      {
-        name: 'APPLICATION_GATEWAY_SSL_KEYVAULT_RESOURCEGROUP'
-        value: keyVaultResourceGroup
-      }
-      {
-        name: 'APPLICATION_GATEWAY_SSL_KEYVAULT_FRONTEND_CERT_DATA_SECRET_NAME'
-        value: keyVaultSSLCertDataSecretName
-      }
-      {
-        name: 'APPLICATION_GATEWAY_SSL_KEYVAULT_FRONTEND_CERT_PASSWORD_SECRET_NAME'
-        value: keyVaultSSLCertPasswordSecretName
-      }
-      {
         name: 'APPLICATION_GATEWAY_SSL_FRONTEND_CERT_DATA'
         value: appGatewaySSLCertData
       }
@@ -232,3 +180,4 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
 }
 
 output aksVersion string = deploymentScript.properties.outputs.aksVersion
+output aksAgentAvailabilityZones array = json(deploymentScript.properties.outputs.agentAvailabilityZones)

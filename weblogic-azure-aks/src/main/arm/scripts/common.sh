@@ -1,9 +1,9 @@
-# Copyright (c) 2021, Oracle Corporation and/or its affiliates.
+# Copyright (c) 2021, 2024, Oracle Corporation and/or its affiliates.
 # Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl.
 # This script runs on Azure Container Instance with Alpine Linux that Azure Deployment script creates.
 
 export checkPodStatusInterval=20 # interval of checking pod status.
-export checkPodStatusMaxAttemps=100 # max attempt to check pod status.
+export checkPodStatusMaxAttemps=200 # max attempt to check pod status.
 export checkPVStateInterval=5 # interval of checking pvc status.
 export checkPVStateMaxAttempt=10 # max attempt to check pvc status.
 export checkSVCStateMaxAttempt=50
@@ -11,11 +11,20 @@ export checkSVCInterval=30 #seconds
 export checkAGICStatusMaxAttempt=10
 export checkAGICStatusInterval=30
 export checkIngressStateMaxAttempt=50
+export checkAcrInterval=30
+export checkAcrMaxAttempt=10
+export checkAgicInterval=30
+export checkAgicMaxAttempt=50
+export checkKedaInteval=30
+export checkKedaMaxAttempt=20
 
 export constAdminT3AddressEnvName="T3_TUNNELING_ADMIN_ADDRESS"
 export constAdminServerName='admin-server'
 export constClusterName='cluster-1'
 export constClusterT3AddressEnvName="T3_TUNNELING_CLUSTER_ADDRESS"
+export constARM64Platform="arm64"
+export constX86Platform="amd64"
+export constMultiArchPlatform="Multi-architecture"
 export constDBTypeMySQL="mysql"
 export constDBTypeSqlServer="sqlserver"
 export constDefaultJavaOptions="-Dlog4j2.formatMsgNoLookups=true -Dweblogic.StdoutDebugEnabled=false" # the java options will be applied to the cluster
@@ -30,6 +39,12 @@ export constMSSQLDriverName="mssql-jdbc-10.2.1.jre8.jar"
 export constAzureCoreVersion="1.34.0"
 export constDbPodIdentitySelector="db-pod-identity" # do not change the value
 export constPreclassDirectoryName="preclassLibraries"
+export constLivenessProbePeriodSeconds=30
+export constLivenessProbeTimeoutSeconds=5
+export constLivenessProbeFailureThreshold=20
+export constReadinessProbeProbePeriodSeconds=10
+export constReadinessProbeTimeoutSeconds=5
+export constReadinessProbeFailureThreshold=3
 
 export curlMaxTime=120 # seconds
 export ocrLoginServer="container-registry.oracle.com"
@@ -37,6 +52,7 @@ export ocrGaImagePath="middleware/weblogic"
 export ocrCpuImagePath="middleware/weblogic_cpu"
 export gitUrl4CpuImages="https://raw.githubusercontent.com/oracle/weblogic-azure/main/weblogic-azure-aks/src/main/resources/weblogic_cpu_images.json"
 export gitUrl4AksWellTestedVersionJsonFile="https://raw.githubusercontent.com/oracle/weblogic-azure/main/weblogic-azure-aks/src/main/resources/aks_well_tested_version.json"
+export gitUrl4AksToolingWellTestedVersionJsonFile="https://raw.githubusercontent.com/oracle/weblogic-azure/main/weblogic-azure-aks/src/main/resources/aks_tooling_well_tested_versions.json"
 export gitUrl4WLSToolingFamilyJsonFile="https://raw.githubusercontent.com/oracle/weblogic-azure/main/weblogic-azure-aks/src/main/resources/weblogic_tooling_family.json"
 export gitUrl4AzureIdentityExtensionsPomFile="https://raw.githubusercontent.com/oracle/weblogic-azure/main/weblogic-azure-aks/src/main/resources/azure-identity-extensions.xml"
 export gitUrl4MySQLDriverPomFile="https://raw.githubusercontent.com/oracle/weblogic-azure/main/weblogic-azure-aks/src/main/resources/mysql-connector-java.xml"
@@ -50,3 +66,4 @@ export retryInterval=10
 export wlsContainerName="weblogic-server"
 export wlsPostgresqlDriverUrl="https://jdbc.postgresql.org/download/postgresql-42.5.1.jar"
 export wlsMSSQLDriverUrl="https://repo.maven.apache.org/maven2/com/microsoft/sqlserver/mssql-jdbc/10.2.1.jre8/mssql-jdbc-10.2.1.jre8.jar"
+export jdkArm64Url="https://aka.ms/download-jdk/microsoft-jdk-11.0.23-linux-aarch64.tar.gz"
