@@ -1,7 +1,7 @@
 # Copyright (c) 2021, 2024 Oracle Corporation and/or its affiliates.
 # Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl.
 
-echo "Script ${0} starts"
+echo_stdout "Script ${0} starts"
 
 #Function to display usage message
 function usage() {
@@ -81,7 +81,7 @@ function validate_input() {
 }
 
 function create_datasource_model_configmap_and_secret() {
-    echo "get data source secret name"
+    echo_stdout "get data source secret name"
     jndiLabel=${JDBC_DATASOURCE_NAME//\//\_}
     secretLen=$(kubectl get secret -n ${wlsDomainNS} -l datasource.JNDI="${jndiLabel}" -o json \
         | jq '.items | length')
@@ -93,13 +93,13 @@ function create_datasource_model_configmap_and_secret() {
         dbSecretName="ds-secret-${DATABASE_TYPE}-${datetime}"
     fi
 
-    echo "Data source secret name: ${dbSecretName}"
+    echo_stdout "Data source secret name: ${dbSecretName}"
     chmod ugo+x $scriptDir/dbUtility.sh
     bash $scriptDir/dbUtility.sh ${dbSecretName} ${optTypeUpdate}
 }
 
 function apply_datasource_to_domain() {
-    echo "apply datasoure"
+    echo_stdout "apply datasoure"
     # get domain configurations
     domainConfigurationJsonFile=$scriptDir/domain.json
     kubectl -n ${wlsDomainNS} get domain ${WLS_DOMAIN_UID} -o json >${domainConfigurationJsonFile}
@@ -108,7 +108,7 @@ function apply_datasource_to_domain() {
     secretList=$(cat ${domainConfigurationJsonFile} | jq -r '. | .spec.configuration.secrets')
     restartVersion=$((restartVersion+1))
 
-    echo "current secrets: ${secretList}"
+    echo_stdout "current secrets: ${secretList}"
     if [[ "${secretList}" != "null" ]];then
         secretList=$(cat ${domainConfigurationJsonFile} | jq -r '. | .spec.configuration.secrets[]')
         secretStrings="["
@@ -124,7 +124,7 @@ function apply_datasource_to_domain() {
         secretStrings="[\"${dbSecretName}\"]"
     fi
 
-    echo "secrets: ${secretStrings}"
+    echo_stdout "secrets: ${secretStrings}"
 
     # apply the configmap
     # apply the secret
@@ -138,7 +138,7 @@ function apply_datasource_to_domain() {
 }
 
 function remove_datasource_from_domain() {
-    echo "remove datasoure secret from domain configuration"
+    echo_stdout "remove datasoure secret from domain configuration"
     # get domain configurations
     domainConfigurationJsonFile=$scriptDir/domain.json
     kubectl -n ${wlsDomainNS} get domain ${WLS_DOMAIN_UID} -o json >${domainConfigurationJsonFile}
@@ -147,7 +147,7 @@ function remove_datasource_from_domain() {
     secretList=$(cat ${domainConfigurationJsonFile} | jq -r '. | .spec.configuration.secrets')
     restartVersion=$((restartVersion+1))
 
-    echo "current secrets: ${secretList}"
+    echo_stdout "current secrets: ${secretList}"
     if [[ "${secretList}" != "null" ]];then
         secretList=$(cat ${domainConfigurationJsonFile} | jq -r '. | .spec.configuration.secrets[]')
         secretStrings="["
@@ -173,7 +173,7 @@ function remove_datasource_from_domain() {
         secretStrings="[]"
     fi
 
-    echo "secrets: ${secretStrings}"
+    echo_stdout "secrets: ${secretStrings}"
 
     # apply the configmap
     # apply the secret
@@ -209,7 +209,7 @@ function wait_for_operation_completed() {
 }
 
 function delete_datasource() {
-    echo "remove secret and model of data source ${JDBC_DATASOURCE_NAME}"
+    echo_stdout "remove secret and model of data source ${JDBC_DATASOURCE_NAME}"
     # remove secret
     # remove model
     chmod ugo+x $scriptDir/dbUtility.sh
@@ -249,7 +249,7 @@ for ds in dsMBeans:
         print 'State is ' +ds.getState()
 EOF
 
-    echo "copy test script ${testDatasourceScript} to pod path /tmp/${dsScriptFileName}"
+    echo_stdout "copy test script ${testDatasourceScript} to pod ${podName} at path /tmp/${dsScriptFileName}"
     targetDSFilePath=/tmp/${dsScriptFileName}
     kubectl cp ${testDatasourceScript} -n ${wlsDomainNS} ${podName}:${targetDSFilePath}
     kubectl exec ${podName} -n ${wlsDomainNS} -c ${wlsContainerName} -- bash -c "wlst.sh ${targetDSFilePath}" | grep "State is Running"
@@ -286,10 +286,10 @@ connect_aks $AKS_NAME $AKS_RESOURCE_GROUP_NAME
 install_kubectl
 
 if [[ "${DB_CONFIGURATION_TYPE}" == "${optTypeDelete}" ]];then
-    echo "delete date source: ${JDBC_DATASOURCE_NAME}"
+    echo_stdout "delete date source: ${JDBC_DATASOURCE_NAME}"
     delete_datasource
 else
-    echo "create/update data source: ${JDBC_DATASOURCE_NAME}"
+    echo_stdout "create/update data source: ${JDBC_DATASOURCE_NAME}"
     create_datasource_model_configmap_and_secret
     apply_datasource_to_domain
     wait_for_operation_completed
