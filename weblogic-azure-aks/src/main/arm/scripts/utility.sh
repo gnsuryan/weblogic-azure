@@ -228,7 +228,7 @@ function utility_validate_application_status() {
     local targetFilePath=/tmp/checkApplicationStatus.py
     echo "copy ${pyScriptPath} to ${targetFilePath}"
     kubectl cp ${pyScriptPath} -n ${wlsDomainNS} ${podName}:${targetFilePath}
-    kubectl exec -it ${podName} -n ${wlsDomainNS} -c "weblogic-server" \
+    kubectl exec ${podName} -n ${wlsDomainNS} -c "weblogic-server" \
         -- bash -c "wlst.sh ${targetFilePath} -user ${wlsUser} -password ${wlsPassword} -t3ChannelAddress ${t3ChannelAddress} -t3ChannelPort ${adminTargetPort}" |
         grep "Summary: all applications are active"
 
