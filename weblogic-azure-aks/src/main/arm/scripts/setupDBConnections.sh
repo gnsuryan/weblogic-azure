@@ -1,7 +1,7 @@
 # Copyright (c) 2021, 2024 Oracle Corporation and/or its affiliates.
 # Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl.
 
-echo_stdout "Script ${0} starts"
+echo "Script ${0} starts"
 
 #Function to display usage message
 function usage() {
@@ -26,7 +26,7 @@ WLS_DOMAIN_PASSWORD: passowrd for WebLogic Administrator.
 END
 )
 
-    echo_stdout "${usage}"
+    echo "${usage}"
     if [ $1 -eq 1 ]; then
         echo_stderr "${usage}"
         exit 1
