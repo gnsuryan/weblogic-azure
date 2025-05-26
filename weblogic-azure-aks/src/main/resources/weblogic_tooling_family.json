@@ -12,7 +12,7 @@
             "key": "WDT",
             "description": "Oracle WebLogic Deploy Tooling",
             "version": "4.3.5",
-            "downloadURL": "https://github.com/oracle/weblogic-deploy-tooling/releases/download/release-4.3.4/weblogic-deploy.zip",
+            "downloadURL": "https://github.com/oracle/weblogic-deploy-tooling/releases/download/release-4.3.5/weblogic-deploy.zip",
             "testedDate": "2025-05-26"
         },
         {
