@@ -26,7 +26,7 @@ WLS_DOMAIN_PASSWORD: passowrd for WebLogic Administrator.
 END
 )
 
-    echo "${usage}"
+    echo_stdout "${usage}"
     if [ $1 -eq 1 ]; then
         echo_stderr "${usage}"
         exit 1
@@ -81,7 +81,7 @@ function validate_input() {
 }
 
 function create_datasource_model_configmap_and_secret() {
-    echo_stdout "get data source secret name"
+    echo "get data source secret name"
     jndiLabel=${JDBC_DATASOURCE_NAME//\//\_}
     secretLen=$(kubectl get secret -n ${wlsDomainNS} -l datasource.JNDI="${jndiLabel}" -o json \
         | jq '.items | length')
@@ -93,13 +93,13 @@ function create_datasource_model_configmap_and_secret() {
         dbSecretName="ds-secret-${DATABASE_TYPE}-${datetime}"
     fi
 
-    echo_stdout "Data source secret name: ${dbSecretName}"
+    echo "Data source secret name: ${dbSecretName}"
     chmod ugo+x $scriptDir/dbUtility.sh
     bash $scriptDir/dbUtility.sh ${dbSecretName} ${optTypeUpdate}
 }
 
 function apply_datasource_to_domain() {
-    echo_stdout "apply datasoure"
+    echo "apply datasoure"
     # get domain configurations
     domainConfigurationJsonFile=$scriptDir/domain.json
     kubectl -n ${wlsDomainNS} get domain ${WLS_DOMAIN_UID} -o json >${domainConfigurationJsonFile}
@@ -108,7 +108,7 @@ function apply_datasource_to_domain() {
     secretList=$(cat ${domainConfigurationJsonFile} | jq -r '. | .spec.configuration.secrets')
     restartVersion=$((restartVersion+1))
 
-    echo_stdout "current secrets: ${secretList}"
+    echo "current secrets: ${secretList}"
     if [[ "${secretList}" != "null" ]];then
         secretList=$(cat ${domainConfigurationJsonFile} | jq -r '. | .spec.configuration.secrets[]')
         secretStrings="["
@@ -124,7 +124,7 @@ function apply_datasource_to_domain() {
         secretStrings="[\"${dbSecretName}\"]"
     fi
 
-    echo_stdout "secrets: ${secretStrings}"
+    echo "secrets: ${secretStrings}"
 
     # apply the configmap
     # apply the secret
@@ -138,7 +138,7 @@ function apply_datasource_to_domain() {
 }
 
 function remove_datasource_from_domain() {
-    echo_stdout "remove datasoure secret from domain configuration"
+    echo "remove datasoure secret from domain configuration"
     # get domain configurations
     domainConfigurationJsonFile=$scriptDir/domain.json
     kubectl -n ${wlsDomainNS} get domain ${WLS_DOMAIN_UID} -o json >${domainConfigurationJsonFile}
@@ -147,7 +147,7 @@ function remove_datasource_from_domain() {
     secretList=$(cat ${domainConfigurationJsonFile} | jq -r '. | .spec.configuration.secrets')
     restartVersion=$((restartVersion+1))
 
-    echo_stdout "current secrets: ${secretList}"
+    echo "current secrets: ${secretList}"
     if [[ "${secretList}" != "null" ]];then
         secretList=$(cat ${domainConfigurationJsonFile} | jq -r '. | .spec.configuration.secrets[]')
         secretStrings="["
@@ -173,7 +173,7 @@ function remove_datasource_from_domain() {
         secretStrings="[]"
     fi
 
-    echo_stdout "secrets: ${secretStrings}"
+    echo "secrets: ${secretStrings}"
 
     # apply the configmap
     # apply the secret
@@ -209,7 +209,7 @@ function wait_for_operation_completed() {
 }
 
 function delete_datasource() {
-    echo_stdout "remove secret and model of data source ${JDBC_DATASOURCE_NAME}"
+    echo "remove secret and model of data source ${JDBC_DATASOURCE_NAME}"
     # remove secret
     # remove model
     chmod ugo+x $scriptDir/dbUtility.sh
@@ -249,10 +249,10 @@ for ds in dsMBeans:
         print 'State is ' +ds.getState()
 EOF
 
-    echo_stdout "copy test script ${testDatasourceScript} to pod ${podName} at path /tmp/${dsScriptFileName}"
+    echo "copy test script ${testDatasourceScript} to pod path /tmp/${dsScriptFileName}"
     targetDSFilePath=/tmp/${dsScriptFileName}
     kubectl cp ${testDatasourceScript} -n ${wlsDomainNS} ${podName}:${targetDSFilePath}
-    kubectl exec ${podName} -n ${wlsDomainNS} -c ${wlsContainerName} -- bash -c "wlst.sh ${targetDSFilePath}" | grep "State is Running"
+    kubectl exec -it ${podName} -n ${wlsDomainNS} -c ${wlsContainerName} -- bash -c "wlst.sh ${targetDSFilePath}" | grep "State is Running"
     
     if [ $? == 1 ];then
         echo_stderr "Failed to configure datasource ${JDBC_DATASOURCE_NAME}. Please make sure the input values are correct."
@@ -286,10 +286,10 @@ connect_aks $AKS_NAME $AKS_RESOURCE_GROUP_NAME
 install_kubectl
 
 if [[ "${DB_CONFIGURATION_TYPE}" == "${optTypeDelete}" ]];then
-    echo_stdout "delete date source: ${JDBC_DATASOURCE_NAME}"
+    echo "delete date source: ${JDBC_DATASOURCE_NAME}"
     delete_datasource
 else
-    echo_stdout "create/update data source: ${JDBC_DATASOURCE_NAME}"
+    echo "create/update data source: ${JDBC_DATASOURCE_NAME}"
     create_datasource_model_configmap_and_secret
     apply_datasource_to_domain
     wait_for_operation_completed
