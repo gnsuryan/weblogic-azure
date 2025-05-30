@@ -11,7 +11,7 @@ param aksClusterName string = ''
 param azCliVersion string = ''
 param identity object = {}
 param location string
-@description('${label.tagsLabel}')
+@description('Tags for the resources')
 param tagsByResource object
 param utcValue string = utcNow()
 param wlsDomainUID string = 'sample-domain1'
@@ -24,14 +24,15 @@ var const_pyCheckAppStatusScript = 'checkApplicationStatus.py'
 var const_scriptLocation = uri(_artifactsLocation, 'scripts/')
 var const_validateAppScript= 'validateApplications.sh'
 var const_utilityScript= 'utility.sh'
+var const_commonScript = 'common.sh'
 
 
-resource deploymentScript 'Microsoft.Resources/deploymentScripts@${azure.apiVersionForDeploymentScript}' = {
+resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
   name: 'ds-wls-validate-applications-${_globalResourceNameSuffix}'
   location: location
   kind: 'AzureCLI'
   identity: identity
-  tags: tagsByResource['${identifier.deploymentScripts}']
+  tags: tagsByResource['Microsoft.Resources/deploymentScripts']
   properties: {
     azCliVersion: azCliVersion
     environmentVariables: [
@@ -58,6 +59,7 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@${azure.apiVers
     ]
     primaryScriptUri: uri(const_scriptLocation, '${const_validateAppScript}${_artifactsLocationSasToken}')
     supportingScriptUris: [
+      uri(const_scriptLocation, '${const_commonScript}${_artifactsLocationSasToken}')
       uri(const_scriptLocation, '${const_utilityScript}${_artifactsLocationSasToken}')
       uri(const_scriptLocation, '${const_pyCheckAppStatusScript}${_artifactsLocationSasToken}')
     ]
