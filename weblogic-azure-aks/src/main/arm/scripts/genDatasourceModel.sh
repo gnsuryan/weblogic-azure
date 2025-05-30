@@ -12,13 +12,15 @@ export driver=$4
 export testTableName=$5
 export secretName=$6
 
+jndiLabel=${jndiName//\//\_}
+
 cat <<EOF >${filePath}
 # Copyright (c) 2020, 2021, Oracle and/or its affiliates.
 # Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl.
 
 resources:
   JDBCSystemResource:
-    ${jndiName}:
+    ${jndiLabel}:
       Target: '${target}'
       JdbcResource:
         JDBCDataSourceParams:
