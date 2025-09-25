@@ -1,0 +1,155 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "_artifactsLocation": {
+            "value": "https://raw.githubusercontent.com/gnsuryan/weblogic-azure/refs/heads/hardcoded-pids/weblogic-azure-aks/src/main/" 
+        "acrName": {
+            "value": null
+        },
+        "acrResourceGroupName": {
+            "value": null
+        },
+        "aksAgentPoolNodeCount": {
+            "value": 3
+        },
+        "aksAgentPoolNodeMaxCount": {
+            "value": 5
+        },
+        "aksClusterName": {
+            "value": null
+        },
+        "aksClusterRGName": {
+            "value": null
+        },
+        "appGatewayCertificateOption": {
+            "value": "generateCert"
+        },
+        "appgwForAdminServer": {
+            "value": false
+        },
+        "appgwForRemoteConsole": {
+            "value": false
+        },
+        "appReplicas": {
+            "value": 2
+        },
+        "createACR": {
+            "value": true
+        },
+        "createAKSCluster": {
+            "value": true
+        },
+        "createDNSZone": {
+            "value": true
+        },
+        "dsConnectionURL": {
+            "value": "null"
+        },
+        "enableAppGWIngress": {
+            "value": true
+        },
+        "enableAutoscaling": {
+            "value": false
+        },
+        "enableAzureMonitoring": {
+            "value": false
+        },
+        "enableAzureFileShare": {
+            "value": false
+        },
+        "enableCookieBasedAffinity": {
+            "value": true
+        },
+        "enableCustomSSL": {
+            "value": false
+        },
+        "enableDB": {
+            "value": false
+        },
+        "enableDNSConfiguration": {
+            "value": false
+        },
+        "enablePswlessConnection": {
+            "value": false
+        },
+        "isSSOSupportEntitled": {
+            "value": false
+        },
+        "lbSvcValues": {
+            "value": []
+        },
+        "location": {
+            "value": "eastus"
+        },
+        "newOrExistingVnetForApplicationGateway": {
+            "value": "new"
+        },
+        "ocrSSOPSW": {
+            "value": "lw8CFf0W=DSxfw48TG4"
+        },
+        "ocrSSOUser": {
+            "value": "gurudutt.suryanarayana@oracle.com"
+        },
+        "useHpa": {
+            "value": false
+        },
+        "useInternalLB": {
+            "value": false
+        },
+        "useOracleImage": {
+            "value": true
+        },
+        "userProvidedAcr": {
+            "value": null
+        },
+        "userProvidedAcrRgName": {
+            "value": null
+        },
+        "vnetForApplicationGateway": {
+            "value": {
+                "name": "wlsaks-vnetf06e2e3f",
+                "resourceGroup": "guru-test",
+                "addressPrefixes": [
+                    "172.16.0.0/24"
+                ],
+                "addressPrefix": "172.16.0.0/24",
+                "newOrExisting": "new",
+                "subnets": {
+                    "gatewaySubnet": {
+                        "name": "wls-aks-gateway-subnet",
+                        "addressPrefix": "172.16.0.0/24",
+                        "startAddress": "10.0.0.9",
+                        "addressPrefixes": [
+                            "172.16.0.0/24"
+                        ]
+                    }
+                }
+            }
+        },
+        "vnetRGNameForApplicationGateway": {
+            "value": "guru-test"
+        },
+        "vmSize": {
+            "value": "Standard_DS2_v2"
+        },
+        "wdtRuntimePassword": {
+            "value": null
+        },
+        "wlsImageTag": {
+            "value": "14.1.2.0-generic-jdk17-ol9"
+        },
+        "wlsPassword": {
+            "value": null
+        },
+        "wlsUserName": {
+            "value": "weblogic"
+        },
+        "tagsByResource": {
+            "value": {}
+        },
+        "validateApplications": {
+            "value": true
+        }
+    }
+}
