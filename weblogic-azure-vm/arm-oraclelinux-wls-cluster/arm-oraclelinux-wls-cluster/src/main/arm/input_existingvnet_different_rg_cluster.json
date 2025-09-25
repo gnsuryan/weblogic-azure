@@ -1,0 +1,85 @@
+{
+  "_artifactsLocation": {
+    "value": "https://raw.githubusercontent.com/gnsuryan/weblogic-azure-testing/refs/heads/main/weblogic-azure-vm/arm-oraclelinux-wls-cluster/arm-oraclelinux-wls-cluster/src/main/arm/"
+  }, 
+  "Location": {
+    "value": "eastus"
+  },
+  "adminPasswordOrKey": {
+    "value": "Weblogic5678"
+  },
+  "adminUsername": {
+    "value": "weblogic"
+  },
+  "addressPrefixes": {
+    "value": [
+      "10.0.0.0/16"
+    ]
+  },
+  "authenticationType": {
+    "value": "password"
+  },
+  "enableDB": {
+    "value": false
+  },
+  "enableAppGateway": {
+    "value": false
+  },
+  "enableCoherence": {
+    "value": false
+  },
+  "enableCoherenceWebLocalStorage": {
+    "value": false
+  },
+  "enableCookieBasedAffinity": {
+    "value": false
+  },
+  "enableDNSConfiguration": {
+    "value": false
+  },
+  "enablePswlessConnection": {
+    "value": false
+  },
+  "hasDNSZones": {
+    "value": false
+  },
+  "numberOfCoherenceCacheInstances": {
+    "value": 1
+  },
+  "numberOfInstances": {
+    "value": 4
+  },
+  "skuUrnVersion": {
+    "value": "owls-141200-jdk21-ol94;Oracle:weblogic-141200-jdk21-ol94:owls-141200-jdk21-ol94;latest"
+  },
+  "vmSize": {
+    "value": "Standard_B1ms"
+  },
+  "wlsPassword": {
+    "value": "Weblogic5678"
+  },
+  "wlsUserName": {
+    "value": "weblogic"
+  },
+  "enableCustomSSL": {
+    "value": false
+  },
+  "subnetName": {
+    "value": "default"
+  },
+  "subnetPrefix": {
+    "value": "10.0.0.0/24"
+  },
+  "virtualNetworkName": {
+    "value": "guruVNET"
+  },
+  "virtualNetworkResourceGroupName": {
+    "value": "guru-test"
+  },
+  "virtualNetworkNewOrExisting": {
+    "value": "existing"
+  },
+  "tagsByResource": {
+    "value": {}
+  }
+}
