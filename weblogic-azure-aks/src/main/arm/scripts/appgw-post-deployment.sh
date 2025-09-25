@@ -39,8 +39,8 @@ for FE in $FE_IPS; do
     CURRENT_TAG=$(az network public-ip show -g $PUB_RG -n $PUB_NAME \
       --query "tags.TagName" -o tsv)
 
-    if [ "$CURRENT_TAG" == "$TAGVALUE" ]; then
-      echo "Public IP $PUB_NAME matches tag $TAGVALUE"
+    if [ "$CURRENT_TAG" == "$GUID_TAG" ]; then
+      echo "Public IP $PUB_NAME matches tag $GUID_TAG"
       echo "Detaching from frontend config..."
       az network application-gateway frontend-ip update \
         --gateway-name $APPGW_NAME \

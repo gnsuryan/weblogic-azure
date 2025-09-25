@@ -89,14 +89,13 @@ resource gatewayPublicIP 'Microsoft.Network/publicIPAddresses@2023-06-01' = {
     name: 'Standard'
   }
   location: location
-  tags: tagsByResource['Microsoft.Network/publicIPAddresses']
   properties: {
     publicIPAllocationMethod: 'Static'
     dnsSettings: {
       domainNameLabel: dnsNameforApplicationGateway
     }
   }
-  tags: const_newVNet ? _objTagsByResource['Microsoft.Network/publicIPAddresses'] : union(_objTagsByResource['Microsoft.Network/publicIPAddresses'], {
+  tags: const_newVNet ? tagsByResource['Microsoft.Network/publicIPAddresses'] : union(tagsByResource['Microsoft.Network/publicIPAddresses'], {
     '${guidTag}': ''
   })
 }
