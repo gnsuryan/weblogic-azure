@@ -7,8 +7,9 @@ param _artifactsLocationSasToken string = ''
 param location string
 param name string = ''
 param identity object = {}
-param configureAppGw bool = true
 param resourceGroupName string
+param appGatewayName string
+param guidTag string
 
 param utcValue string = utcNow()
 
@@ -23,13 +24,17 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@${azure.apiVers
     azCliVersion: '2.41.0'
     environmentVariables: [  
       {
-        name: 'CONFIGURE_APPGW'
-        value: string(configureAppGw)
+        name: 'APPGW_NAME'
+        value: appGatewayName
       }
       {
         name: 'RESOURCE_GROUP_NAME'
         value: resourceGroupName
-      }   
+      }
+      {
+        name: 'GUID_TAG'
+        value: guidTag
+      }
     ]
     primaryScriptUri: uri(const_scriptLocation, 'appgw-post-deployment.sh${_artifactsLocationSasToken}')
 

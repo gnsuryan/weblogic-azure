@@ -798,7 +798,7 @@ module queryWLSDomainConfig 'modules/_deployment-scripts/_ds-output-domain-confi
   ]
 }
 
-module appGWPostDeployment 'modules/_deployment-scripts/_dsAppGWPostDeployment.bicep' = if (enableAppGWIngress && const_newVNet ) {
+module appGWPostDeployment 'modules/_deployment-scripts/_ds_appgw-post-deployment.bicep' = if (enableAppGWIngress && const_newVNet ) {
   name: name_appGWPostDeploymentDsName
   params: {
     name: name_appGWPostDeploymentDsName
@@ -807,6 +807,7 @@ module appGWPostDeployment 'modules/_deployment-scripts/_dsAppGWPostDeployment.b
     _artifactsLocationSasToken: _artifactsLocationSasToken
     identity: obj_uamiForDeploymentScript
     resourceGroupName: resourceGroup().name
+    appGatewayName: enableAppGWIngress ? appgatewayDeployment.outputs.appGatewayName : ''
     guidTag: guidTag
   }
   dependsOn: [
@@ -817,7 +818,8 @@ module appGWPostDeployment 'modules/_deployment-scripts/_dsAppGWPostDeployment.b
     datasourceDeployment
     passwordlessDatasourceDeployment
     validateApplciations
-    horizontalAutoscaling     
+    horizontalAutoscaling
+    queryWLSDomainConfig
   ]
 }
 
