@@ -259,6 +259,8 @@ param wlsMemory string = '1.5Gi'
 param wlsPassword string
 @description('User name for WebLogic Administrator.')
 param wlsUserName string = 'weblogic'
+@description('guidtag for outbound access')
+param guidTag = newGuid()
 
 // To mitigate arm-ttk error: Type Mismatch: Parameter in nested template is defined as string, but the parent template defines it as bool.
 var _enableCustomSSL = enableCustomSSL
@@ -317,6 +319,8 @@ var obj_uamiForDeploymentScript = {
     '${uamiDeployment.outputs.uamiIdForDeploymentScript}': {}
   }
 }
+var name_appGWPostDeploymentDsName = format('appgwpostdeploymentds{0}',const_globalResourceNameSuffix)
+var const_newVNet = (newOrExistingVnetForApplicationGateway == 'new') ? true : false
 
 /*
 * Beginning of the offer deployment
@@ -449,6 +453,7 @@ module appgatewayDeployment 'modules/_appGateway.bicep' = if (enableAppGWIngress
     trustedRootCertificateDeploymentName: name_appgwBackendRootCertName
     vnetForApplicationGateway: vnetForApplicationGateway
     vnetRGNameForApplicationGateway: vnetRGNameForApplicationGateway
+    guidTag: guidTag
     tagsByResource: _objTagsByResource
   }
   dependsOn: [
@@ -790,6 +795,29 @@ module queryWLSDomainConfig 'modules/_deployment-scripts/_ds-output-domain-confi
   }
   dependsOn: [
     horizontalAutoscaling
+  ]
+}
+
+module appGWPostDeployment 'modules/_deployment-scripts/_dsAppGWPostDeployment.bicep' = if (enableAppGWIngress && const_newVNet ) {
+  name: name_appGWPostDeploymentDsName
+  params: {
+    name: name_appGWPostDeploymentDsName
+    location: location
+    _artifactsLocation: _artifactsLocation
+    _artifactsLocationSasToken: _artifactsLocationSasToken
+    identity: obj_uamiForDeploymentScript
+    resourceGroupName: resourceGroup().name
+    guidTag: guidTag
+  }
+  dependsOn: [
+    wlsDomainDeployment
+    wlsDomainWithCustomSSLDeployment
+    appgatewayDeployment
+    networkingDeployment
+    datasourceDeployment
+    passwordlessDatasourceDeployment
+    validateApplciations
+    horizontalAutoscaling     
   ]
 }
 
