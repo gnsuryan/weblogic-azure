@@ -32,6 +32,7 @@ param trustedRootCertificateDeploymentName string
 @secure()
 param vnetForApplicationGateway object
 param vnetRGNameForApplicationGateway string
+param guidTag string
 @description('${label.tagsLabel}')
 param tagsByResource object
 
@@ -108,6 +109,8 @@ module appgwDeployment1 '_azure-resoruces/_appgateway.bicep' = if (_selfSignedFr
     staticPrivateFrontentIP: _appgwUsePrivateIP ? queryPrivateIPFromSubnet.outputs.privateIP : ''
     trustedRootCertData: const_null
     usePrivateIP: appgwUsePrivateIP
+    newOrExistingVnetForApplicationGateway: newOrExistingVnetForApplicationGateway
+    guidTag: guidTag
     tagsByResource: tagsByResource
   }
   dependsOn: [

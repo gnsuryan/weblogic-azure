@@ -20,10 +20,13 @@ param staticPrivateFrontentIP string = '10.0.0.1'
 @secure()
 param trustedRootCertData string = newGuid()
 param usePrivateIP bool = false
+param newOrExistingVnetForApplicationGateway string = 'new'
+param guidTag string
 @description('${label.tagsLabel}')
 param tagsByResource object
 param utcValue string = utcNow()
 
+var const_newVNet = (newOrExistingVnetForApplicationGateway == 'new') ? true : false
 var const_sslCertPsw = (noSslCertPsw) ? '' : sslCertPswData
 var name_backendAddressPool = 'myGatewayBackendPool'
 var name_frontEndIPConfig = 'appGwPublicFrontendIp'
@@ -93,6 +96,9 @@ resource gatewayPublicIP 'Microsoft.Network/publicIPAddresses@${azure.apiVersion
       domainNameLabel: dnsNameforApplicationGateway
     }
   }
+  tags: const_newVNet ? _objTagsByResource['${identifier.publicIPAddresses}'] : union(_objTagsByResource['${identifier.publicIPAddresses}'], {
+    '${guidTag}': ''
+  })
 }
 
 resource wafv2AppGateway 'Microsoft.Network/applicationGateways@${azure.apiVersionForApplicationGateways}' = {
