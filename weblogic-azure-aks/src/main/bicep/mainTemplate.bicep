@@ -321,7 +321,7 @@ var obj_uamiForDeploymentScript = {
 }
 var name_appGWPostDeploymentDsName = format('appgwpostdeploymentds{0}',const_globalResourceNameSuffix)
 var const_newVNet = (newOrExistingVnetForApplicationGateway == 'new') ? true : false
-var const_guidTag = (newOrExistingVnetForApplicationGateway != 'new') ? guidTag: ''
+var const_guidTag = uniqueString(guidTag)
 /*
 * Beginning of the offer deployment
 */

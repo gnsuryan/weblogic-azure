@@ -68,7 +68,7 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
         value: ocrSSOUser
       }
       {
-        name: 'ORACLE_ACCOUNT_PASSWORD'
+        name: 'ORACLE_ACCOUNT_SHIBBOLETH'
         secureValue: ocrSSOPSW
       }
       {
