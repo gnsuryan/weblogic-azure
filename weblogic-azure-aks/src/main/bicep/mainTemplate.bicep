@@ -321,7 +321,7 @@ var obj_uamiForDeploymentScript = {
 }
 var name_appGWPostDeploymentDsName = format('appgwpostdeploymentds{0}',const_globalResourceNameSuffix)
 var const_newVNet = (newOrExistingVnetForApplicationGateway == 'new') ? true : false
-var const_guidTag = (newOrExistingVnetForApplicationGateway == 'new') ? guidTag: ''
+var const_guidTag = (newOrExistingVnetForApplicationGateway != 'new') ? guidTag: ''
 /*
 * Beginning of the offer deployment
 */
@@ -798,7 +798,7 @@ module queryWLSDomainConfig 'modules/_deployment-scripts/_ds-output-domain-confi
   ]
 }
 
-module appGWPostDeployment 'modules/_deployment-scripts/_ds_appgw-post-deployment.bicep' = if (enableAppGWIngress && const_newVNet ) {
+module appGWPostDeployment 'modules/_deployment-scripts/_ds_appgw-post-deployment.bicep' = if (enableAppGWIngress && !const_newVNet ) {
   name: name_appGWPostDeploymentDsName
   params: {
     name: name_appGWPostDeploymentDsName
