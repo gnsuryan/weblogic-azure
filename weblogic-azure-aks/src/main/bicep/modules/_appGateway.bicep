@@ -135,6 +135,7 @@ module appgwDeployment2 '_azure-resoruces/_appgateway.bicep' = if (_selfSignedFr
     staticPrivateFrontentIP: _appgwUsePrivateIP ? queryPrivateIPFromSubnet.outputs.privateIP : ''
     trustedRootCertData: appgwSSLBackendRootCertData
     usePrivateIP: appgwUsePrivateIP
+    newOrExistingVnetForApplicationGateway: newOrExistingVnetForApplicationGateway
     guidTag: guidTag
     tagsByResource: tagsByResource
   }
@@ -159,6 +160,7 @@ module appgwDeployment3 '_azure-resoruces/_appgateway.bicep' = if (_signedFronte
     staticPrivateFrontentIP: _appgwUsePrivateIP ? queryPrivateIPFromSubnet.outputs.privateIP : ''
     trustedRootCertData: const_null
     usePrivateIP: appgwUsePrivateIP
+    newOrExistingVnetForApplicationGateway: newOrExistingVnetForApplicationGateway
     guidTag: guidTag
     tagsByResource: tagsByResource
   }
@@ -183,6 +185,7 @@ module appgwDeployment4 '_azure-resoruces/_appgateway.bicep' = if (_signedFronte
     staticPrivateFrontentIP: _appgwUsePrivateIP ? queryPrivateIPFromSubnet.outputs.privateIP : ''
     trustedRootCertData: appgwSSLBackendRootCertData
     usePrivateIP: appgwUsePrivateIP
+    newOrExistingVnetForApplicationGateway: newOrExistingVnetForApplicationGateway
     guidTag: guidTag
     tagsByResource: tagsByResource
   }
