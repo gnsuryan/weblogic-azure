@@ -20,7 +20,7 @@ param staticPrivateFrontentIP string = '10.0.0.1'
 @secure()
 param trustedRootCertData string = newGuid()
 param usePrivateIP bool = false
-param newOrExistingVnetForApplicationGateway string
+param newOrExistingVnetForApplicationGateway string = 'new'
 param guidTag string
 @description('Tags for the resources.')
 param tagsByResource object
