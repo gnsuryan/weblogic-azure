@@ -446,11 +446,11 @@ module appgatewayDeployment 'modules/_appGateway.bicep' = if (enableAppGWIngress
     identity: obj_uamiForDeploymentScript 
     nsgName: const_nsgName
     location: location
-    newOrExistingVnetForApplicationGateway: newOrExistingVnetForApplicationGateway
     sslCertData: appGatewaySSLCertData
     sslCertificateDeploymentName: name_appgwFrontendSSLCertName
     sslCertPswData: appGatewaySSLCertPassword
     trustedRootCertificateDeploymentName: name_appgwBackendRootCertName
+    newOrExistingVnetForApplicationGateway: newOrExistingVnetForApplicationGateway
     vnetForApplicationGateway: vnetForApplicationGateway
     vnetRGNameForApplicationGateway: vnetRGNameForApplicationGateway
     guidTag: const_guidTag
