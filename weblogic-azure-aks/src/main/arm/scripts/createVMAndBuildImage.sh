@@ -53,24 +53,20 @@ function cleanup_vm() {
 | where resourceGroup  =~ '${CURRENT_RESOURCEGROUP_NAME}' \
 | project nsgId = id" --query "data[0].nsgId" -o tsv)
 
-    publicIPName="${vmName}PublicIP"
-    IPCONFIG_NAME="ipconfig${vmName}"
-
-    echo "➡ Disassociating Public IP '${publicIPName}' from NIC '${nicName}'..."
-    az network nic ip-config update \
-    --ids ${nicId}/ipConfigurations/${IPCONFIG_NAME} \
-    --public-ip-address ""
-
-    echo "Deleting Public IP resource '${publicIPName}'..."
-    az network public-ip delete \
-    --resource-group ${CURRENT_RESOURCEGROUP_NAME} \
-    --name ${publicIPName}
+    #query public ip id
+    publicIpId=$(az graph query -q "Resources \
+| where type =~ 'Microsoft.Network/publicIPAddresses' \
+| where name =~ '${vmName}PublicIP' \
+| where resourceGroup =~ '${CURRENT_RESOURCEGROUP_NAME}' \
+| project publicIpId = id" --query "data[0].publicIpId" -o tsv)
 
     # Delete VM NIC IP VNET NSG resoruces
     echo "deleting vm ${vmId}"
     az vm delete --ids $vmId --yes
     echo "deleting nic ${nicId}"
     az network nic delete --ids ${nicId}
+    echo "deleting public ip ${publicIpId}"
+    az network public-ip delete --ids $publicIpId
     echo "deleting disk ${osDiskId}"
     az disk delete --yes --ids ${osDiskId}
     echo "deleting vnet ${vnetId}"
