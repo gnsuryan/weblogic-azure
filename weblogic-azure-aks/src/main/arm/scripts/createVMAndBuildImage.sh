@@ -53,6 +53,19 @@ function cleanup_vm() {
 | where resourceGroup  =~ '${CURRENT_RESOURCEGROUP_NAME}' \
 | project nsgId = id" --query "data[0].nsgId" -o tsv)
 
+    publicIPName="${vmName}PublicIP"
+    IPCONFIG_NAME="ipconfig${vmName}"
+
+    echo "➡ Disassociating Public IP '${publicIPName}' from NIC '${nicName}'..."
+    az network nic ip-config update \
+    --ids ${nicId}/ipConfigurations/${IPCONFIG_NAME} \
+    --public-ip-address ""
+
+    echo "Deleting Public IP resource '${publicIPName}'..."
+    az network public-ip delete \
+    --resource-group ${CURRENT_RESOURCEGROUP_NAME} \
+    --name ${publicIPName}
+
     # Delete VM NIC IP VNET NSG resoruces
     echo "deleting vm ${vmId}"
     az vm delete --ids $vmId --yes
@@ -119,6 +132,8 @@ function build_docker_image() {
     export TAG_VM=$(echo "${TAG_VM}" \
         | jq -r 'to_entries | map("\"" + .key + "\"=" + (if .value|type == "string" then "\"\(.value)\"" else "\(.value)" end)) | join(" ")')
 
+    publicIPName="${vmName}PublicIP"
+
     # MICROSOFT_INTERNAL
     # Specify tag 'SkipASMAzSecPack' to skip policy 'linuxazuresecuritypackautodeployiaas_1.6'
     # Specify tag 'SkipNRMS*' to skip Microsoft internal NRMS policy, which causes vm-redeployed issue
@@ -132,9 +147,15 @@ function build_docker_image() {
     --enable-agent true \
     --vnet-name ${vmName}VNET \
     --enable-auto-update false \
-    --public-ip-address "" \
+    --public-ip-address ${publicIPName} \
     --size ${vmSize} \
     --tags ${TAG_VM} SkipASMAzSecPack=true SkipNRMSCorp=true SkipNRMSDatabricks=true SkipNRMSDB=true SkipNRMSHigh=true SkipNRMSMedium=true SkipNRMSRDPSSH=true SkipNRMSSAW=true SkipNRMSMgmt=true --verbose
+
+    echo "Fetching the Public IP of Ubuntu VM..."
+    az vm list-ip-addresses \
+    --resource-group ${CURRENT_RESOURCEGROUP_NAME} \
+    --name ${vmName} \
+    --query "[].virtualMachine.network.publicIpAddresses[0].ipAddress" -o tsv
 
     if [[ "${USE_ORACLE_IMAGE,,}" == "${constTrue}" ]]; then
         get_ocr_image_full_path
