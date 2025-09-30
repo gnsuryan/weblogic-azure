@@ -12,7 +12,7 @@ var name_appGwContributorRoleAssignmentName = guid('${resourceGroup().id}${uniqu
 // https://docs.microsoft.com/en-us/azure/role-based-access-control/built-in-roles
 var const_roleDefinitionIdOfVnetContributor = '4d97b98b-1d4f-4787-a291-c67834d212e7'
 
-resource aksCluster 'Microsoft.ContainerService/managedClusters@2023-08-01' existing = {
+resource aksCluster 'Microsoft.ContainerService/managedClusters@2023-10-01' existing = {
   name: aksClusterName
   scope: resourceGroup(aksClusterRGName)
 }

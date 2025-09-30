@@ -93,7 +93,7 @@ module dbIdentityVMContributorRoleAssignment '_rolesAssignment/_roleAssignmentin
   }
 }
 
-resource existingAKSCluster 'Microsoft.ContainerService/managedClusters@2023-08-01' existing = {
+resource existingAKSCluster 'Microsoft.ContainerService/managedClusters@2023-10-01' existing = {
   name: aksClusterName
   scope: resourceGroup(aksClusterRGName)
 }
@@ -142,7 +142,7 @@ module configDataSource '_deployment-scripts/_ds-datasource-connection.bicep' = 
     dbConfigurationType: dbConfigurationType
     dbGlobalTranPro: dbGlobalTranPro
     dbUser: dbUser
-    dsConnectionURL: format('{0}{4}{1}{5}{2}={3}', const_connectionString, name_jdbcPlugins[databaseType], array_msiClientId[databaseType], reference(items(dbIdentity.userAssignedIdentities)[0].key, const_identityAPIVersion, 'full').properties.clientId, array_urlJoiner[databaseType], array_paramJoiner[databaseType])
+    dsConnectionURL: uri(uri(const_connectionString, '${array_urlJoiner[databaseType]}${name_jdbcPlugins[databaseType]}'), '${array_paramJoiner[databaseType]}${array_msiClientId[databaseType]}=${reference(items(dbIdentity.userAssignedIdentities)[0].key, const_identityAPIVersion, 'full').properties.clientId}')
     enablePswlessConnection: true
     identity: identity
     jdbcDataSourceName: jdbcDataSourceName
